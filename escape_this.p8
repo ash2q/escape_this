@@ -3,27 +3,6 @@ version 35
 __lua__
 --main
 
---synopsis: you are spiderbot,
---a bot which has awoken in a
---post apocalyptic world.
---your operative is to retrieve
---a core sample from an
---active reactor. the reactor
---is available from the start.
---however, there is little
---chance of survival without
---upgrades to your hardware.
---so, you must find resources
---in the lab. the further you
---dive into the lab, the better
---the resources but also
---the harder the enemies.
---the reactor has modifiers
---such as extra heat from
---radiation and contains
---extra hard enemies
-
-
 --x is primary weapon
 --z is movement buff (if have)
 --x+z (hold) is special weapon
@@ -451,31 +430,6 @@ end
 --the reactor contains fixed
 --stages
 
---at the end of each stage
---there is a vending machine
---which contains special things
---that can be bought
---and one free upgrade
---deeper stages contain rarer
---things in vending machines
---and better free upgrades
-
---after each stage you're booted
---to the map screen.
---you can choose between
---mechanic shop, lab, reactor,
---or "home"
-
---home is the only place
---where modules can be swapped
---modules include:
---passive movement(1)
---passive shield(1)
---passive etc(1)
---active weapon(1, x)
---active special(1, z)
---active movement(1, x+z)
-
 
 
 function stage_1()
@@ -485,8 +439,8 @@ function stage_1()
 
 end
 
-depth=1
-stages={
+reactor_depth=1
+reactor_stages={
 	stage_1
 }
 function reactor()
@@ -526,18 +480,18 @@ function check_col(x1,y1,w1,h1,
 	if x1<=x2+w2 and x1>x2 then
 		x_col=true
 	end
-	if x1+w1<=x2 and x1+w1>x2 then
+	if x1-w1<=x2 and x1+w1>x2 then
 		x_col=true
 	end
 	y_col=false
-	if y1<y2+h2 and y1>=y2 then
+	if y1<=y2+h2 and y1>y2 then
 		y_col=true
 	end
-	if y1+h1<y2 and y1+h1>=y2 then
+	if y1-h1<=y2 and y1+h1>=y2 then
 		y_col=true
 	end
 	
-	return x and y
+	return x_col and y_col
 end
 
 function check_player_choice()
