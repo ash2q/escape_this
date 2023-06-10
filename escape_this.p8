@@ -26,7 +26,9 @@ l_border=0
 max_heat=90
 
 enemies={}
-in_stage=false
+current_mode=nil
+
+in_prompt=false
 
 --type 0
 empty_gun={
@@ -87,10 +89,39 @@ g_heat=80
 health_col={8,9,10,15,13,12}
 heat_col={1,12,11,10,9,8}
 
-
+function default_pos()
+	player_x=64
+	player_y=70
+end
 
 function _init()
+	default_pos()
+	current_mode=map_mode
 	build_map()
+	
+end
+
+prompt_msg=""
+prompt_loc=nil
+function prompt_mode()
+	cls()
+	print(prompt_msg)
+	bx=5 --❎
+	b=btn()
+	if b>0 then
+		if b&0x20>0 then
+			prompt_status=0 --confirm
+			prompt_loc.launches()
+			current_mode=
+					prompt_loc.mode
+		end
+		if b&0x10>0 then
+			in_prompt=false
+			prompt_status=1 --return
+		end
+	else
+		in_prompt=true --wait
+	end
 end
 
 function map_mode()
@@ -101,6 +132,9 @@ function map_mode()
 	draw_map()
 	draw_player()
 	check_player_choice()
+	if in_prompt then
+		prompt_mode()
+	end
 end
 
 function stage_mode()
@@ -135,11 +169,7 @@ function _update()
 		acnt = 0
 	end
 	acnt+=1
-	if in_stage then
-		stage_mode()
-	else
-		map_mode()
-	end
+	current_mode()
 end
 
 
@@ -304,8 +334,8 @@ end
 
 function draw_enemies()
 	for e in all(enemies) do
-		tmp=acnt%#e.anim
-		spr(e.anim[1+tmp],
+		tmp=acnt%#e.e.anim
+		spr(e.e.anim[1+tmp],
 			e.x, e.y)
 	end
 end
@@ -411,9 +441,9 @@ function add_spitter(x,y)
 	spitter={
 		x=x,
 		y=y,
-		enemy=enemy_spitter
+		e=enemy_spitter
 	}
-	table.insert(spitter)
+	add(enemies,spitter)
 end
 
 --traces are enemy movement
@@ -445,10 +475,14 @@ reactor_stages={
 	stage_1
 }
 function reactor()
-	if depth>#stages then
-		stages[#stages]()
+	if 
+		reactor_depth>#reactor_stages
+		then
+		reactor_stages
+			[#reactor_stages]()
 	else
-		stages[depth]()
+		reactor_stages
+			[reactor_depth]()
 	end
 	
 end
@@ -458,7 +492,8 @@ locations={}
 reactor_loc={
 	sprite=64,
 	launches=reactor,
-	warning=
+	mode=stage_mode,
+	msg=
 		"enter reactor? (❎ for yes)"
 }
 
@@ -471,7 +506,8 @@ function add_map_loc(x,y,loc)
 end
 
 function build_map()
-	add_map_loc(60,30,reactor_loc)
+	add_map_loc(12*8,3*8,
+		reactor_loc)
 	
 end
 
@@ -506,11 +542,21 @@ function check_player_choice()
 							16,
 							16) then
 			--player chose
-			print(l.warning)
-			stop()
+			prompt(l.loc)
+			
 		end
 	end
 end
+
+function prompt(l)
+	prompt_status=3 --waiting
+	prompt_msg=l.msg
+	in_prompt=true
+	prompt_loc=l
+	default_pos()
+	
+end
+
 __gfx__
 0007700000000000000000000000000000000000000000000cccccc0000009000090000090077009555555555555555555555555006666000066660000555500
 00077000006c060000000500005000000060c600006006000a6cc6a0000005000050000080077008500000055606606550000005006006000696696006755760
