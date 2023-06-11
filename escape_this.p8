@@ -23,70 +23,103 @@ current_mode=nil
 
 in_prompt=false
 
---type 0
-empty_gun={
-	t=0,
-	part=0,
-	lbl=32,
-	charge_anim={},
-	fire_anim={},
-	heat_color=0,
-	charge=0,
-	heat_rate=0,
-	damage_heat_mod=0,
-	rate=0
-}
+empty_gun={}
+beam_gun={}
+chain_gun={}
+x_gun={}
+z_gun={}
 
 --type 1
-beam_gun={
-	t=1,
-	lbl=11,
-	charge=30,
-	heat_rate=2,
-	damage_heat_mod=10,
-	rate=5
-}
---type 2
-chain_gun={
-	t=2,
-	lbl=10,
-	charge=0,
-	heat_rate=10,
-	damage_heat=1.5,
-	rate=5
-}
-
---x is primary/fast
-x_gun={
-	spec=chain_gun,
-	heat=100.0,
-	heat_mod=1.0,
-	heated=false,
-	max_heat=150,
-	cool=1.0,
-	c=0,
-	r=0
-}
---z is secondary/slow
-z_gun={
-	spec=nil
-	--c=0,
-	--r=0
-}
+function init_guns()
+	--type 0
+	empty_gun={
+		t=0,
+		part=0,
+		lbl=32,
+		charge_anim={},
+		fire_anim={},
+		heat_color=0,
+		charge=0,
+		heat_rate=0,
+		damage_heat_mod=0,
+		rate=0
+	}
+	beam_gun={
+		t=1,
+		lbl=11,
+		charge=30,
+		heat_rate=2,
+		damage_heat_mod=10,
+		rate=5
+	}
+	--type 2
+	chain_gun={
+		t=2,
+		lbl=10,
+		charge=0,
+		--each projectile increases
+		--heat by this amount
+		heat_rate=1.5,
+		cool_rate=1.0,
+		dmg=2,
+		rate=5,
+		shoot=shoot_chain,
+		shoot_heated=shoot_heated_chain
+	}
+	
+	--x is primary/fast
+	x_gun={
+		--spec should be immutable
+		spec=chain_gun,
+		heat=120.0,
+		--multiplier for heat rate
+		heat_mul=1.0,
+		--bonus damage for heated gun
+		heated_dmg=1.5,
+		--damage multiplier
+		dmg_mul=1.0,
+		heated=false,
+		--max heat
+		max_heat=150,
+		--multipler for cool rate
+		cool_mod=1.0,
+		c=0, --charge counter
+		r=0 --rate counter
+	}
+	--z is secondary/slow
+	z_gun={
+		spec=nil
+	}
+end
 --spider bot globals
 --animation for player track
 sb_anim={20,21,22,23}
+--animation when heated
 sb_heated_anim={32,33,34,35}
+--spiberbot position
 sb_x=64
 sb_y=70
+--if sb moved (for animation)
 sb_moved=false
+
 sb_heat=0.0
 sb_max_heat=200
 sb_health=100
+--maximum health
 sb_max_health=100
+--if heated
 sb_heated=true
-sb_heat_dis=1.0
-sb_blt_heated_mod=1.5
+--rate at which sb cools
+sb_cool=2.0
+--multiplier for gun heat
+sb_gun_heat_mul=1.0
+--speed of movement
+sb_speed=1.0
+--how quick of fire rate
+sb_rate_mod=1.0
+--while gun is overheated add
+--this amount to sb_heat
+sb_gun_overheat=1.0
 
 function reset_sp()
 	sb_x=64.0
@@ -99,6 +132,7 @@ end
 dev_shortcut = true
 
 function _init()
+	init_guns()
 	if dev_shortcut then
 		reset_sp()
 		current_mode=stage_mode
@@ -158,7 +192,10 @@ function stage_mode()
 	
 	draw_bullets()
 	draw_hud()
-	x_gun.heat-=x_gun.cool
+	x_gun.heat-=
+		x_gun.spec.cool_rate*
+		x_gun.cool_mod
+		
 	if x_gun.heat<0 then
 		x_gun.heat=0
 	end
@@ -171,7 +208,7 @@ function stage_mode()
 	if sb_heat > sb_max_heat then
 		sb_heated=true
 	end
-	sb_heat-=sb_heat_dis
+	sb_heat-=sb_cool
 	if sb_heat<0 then
 		sb_heat=0.0
 		sb_heated=false
@@ -198,7 +235,7 @@ function draw_hud()
 	--10, 11
 	rectfill(0,0,128,7,5)
 	--draw x meter
-	draw_gun_hud(45,z_gun)
+	--draw_gun_hud(45,z_gun)
 	--draw z meter
 	draw_gun_hud(0,x_gun)
 	--draw g meter
@@ -288,7 +325,7 @@ end
 -->8
 --controls
 
-player_speed=1
+
 
 function player_control()
 	l=0
@@ -300,16 +337,16 @@ function player_control()
 	x=sb_x
 	y=sb_y
 	if btn(l) then
-		sb_x-=player_speed
+		sb_x-=sb_speed
 	end
 	if btn(r) then
-		sb_x+=player_speed
+		sb_x+=sb_speed
 	end
 	if btn(u) then
-		sb_y-=player_speed
+		sb_y-=sb_speed
 	end
 	if btn(d) then
-		sb_y+=player_speed
+		sb_y+=sb_speed
 	end
 	if sb_y != y or 
 			 sb_x != x then
@@ -338,34 +375,44 @@ function gun_control()
 	bz=4
 	x=sb_x
 	y=sb_y
+	spec=x_gun.spec
 	if btn(bx) then
-		gun=x_gun
-		spec=x_gun.spec
-		
-		gun.c+=1
-		if gun.c>=spec.charge then
-			if gun.r==spec.rate then
-				gun.r=0
+		--do rate of fire
+		if x_gun.r>=x_gun.spec.rate then
+			x_gun.r=0
+		else
+			x_gun.r+=sb_rate_mod
+		end
+		if x_gun.r==0 then
+			--shoot bullet now
+			if x_gun.heat>100 then
+				spec.shoot_heated()
 			else
-				gun.r+=1
+				spec.shoot()
 			end
-			if gun.r==0 then
-				shoot_pistol()
-				x_gun.heat+=spec.heat_rate
-				if x_gun.heat>x_gun.max_heat
-				 then
-					x_gun.heat=x_gun.max_heat
-				end
+			x_gun.heat+=
+				(x_gun.spec.heat_rate*
+				x_gun.heat_mul)*
+			 sb_gun_heat_mul
+			--x_gun.heat+=spec.heat_rate
+			--x_gun.heat*=sb_gun_heat_mul
+			if x_gun.heat>x_gun.max_heat
+			 then
+				x_gun.heat=x_gun.max_heat
+				sb_heat+=sb_gun_overheat
 			end
 		end
 	else
-		x_gun.c=0
+		--x_gun.c=0
 	end
 	x_gun.r=max(x_gun.r,0)
-	z_gun.r=max(z_gun.r,0)
+	--z_gun.r=max(z_gun.r,0)
 end
 
+--this implements rate of fire
+function x_fire_rate()
 
+end
 -->8
 --drawing
 
@@ -407,27 +454,23 @@ end
 
 bullets={}
 
---example bullet
-ex_bullet={
-	x=0, --pos
-	y=0, --pos
-	size=1,
-	damage=2,
-	steps=1,
- friendly=true, --true for from player
---positive for spr, negative for 
---pixel color
-	sprite=-1
-}
 
 function draw_bullets()
+	printh(#bullets)
 	for b in all(bullets) do
+		printh("+")
+		printh(#b)
+		for k,v in all(b) do
+			printh(k)
+			printh(v)
+		end
+		printh("----")
 		if b.sprite<0 then
 			pset(b.x,b.y,abs(b.sprite))
 		else
 		 spr(b.x,b.y,b.sprite)
 		end
-		b=b.step_fn(b)
+		b.step_fn(b)
 		
 		if b.friendly then
 		--	b.y-=1
@@ -437,32 +480,58 @@ function draw_bullets()
 	end
 end
 
-function shoot_pistol()
+function shoot_chain()
 	x1=sb_x+3
 	y=sb_y
-	blt1=blt_straight(x1,y)
-	add(bullets,blt1)
+	dmg=x_gun.spec.dmg
+	blt=blt_straight(x1,y,dmg)
+	add(bullets,blt)
 end
 
-function blt_straight(x,y)
+function shoot_heated_chain()
+	x1=sb_x+3
+	y=sb_y
+	dmg=x_gun.spec.dmg
+	blt=blt_heated_straight(x1,y,
+		dmg)
+	add(bullets,blt)
+end
+
+function blt_straight(x,y,dmg)
 	blt={}
 	blt.x=x
 	blt.y=y
 	blt.xend=x
 	blt.yend=0
 	blt.size=1
-	blt.damage=1
+	blt.dmg=dmg
 	blt.steps=1
 	blt.friendly=true
 	blt.sprite=-7
+	blt.hit_fn=hit_blt
 	blt.step_fn=step_straight
+	blt.collision_fn=col_pixel
 	return blt
 end
 
-function blt_heated_straight(x,y)
-	blt.damage*=sp_blt_heated_mod
+function blt_heated_straight(x,y,dmg)
+	blt=blt_straight(x,y,dmg)
 	blt.sprite=-8
 	return blt
+end
+
+function hit_blt(blt, e)
+	e.health-=blt.damage
+end
+
+function col_pixel(x1,y1,x2,y2,
+			w,h)
+			--defaults to 8x8
+			w=w or 8
+			h=h or 8
+--x1,y1 = pixel bullet
+--x2,y2 = target sprite to check
+--w,h = size of target sprite
 end
 
 
