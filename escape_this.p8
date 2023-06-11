@@ -11,19 +11,12 @@ __lua__
 --provides for anim. of still entities
 acnt=1
 
---animation for player track
-track_anim={20,21,22,23}
-player_x=64
-player_y=70
-player_moved=false
-
 top_border=9
 bot_border=120
 midline=60
 r_border=120
 l_border=0
 
-max_heat=90
 
 enemies={}
 current_mode=nil
@@ -80,19 +73,24 @@ z_gun={
 	--c=0,
 	--r=0
 }
-	
-sp_heat=0.0
-sp_max_heat=200
-sp_health=100
-sp_max_health=100
-sp_heated=true
-sp_heat_dis=1.0
+--spider bot globals
+--animation for player track
+sb_anim={20,21,22,23}
+sb_x=64
+sb_y=70
+sb_moved=false
+sb_heat=0.0
+sb_max_heat=200
+sb_health=100
+sb_max_health=100
+sb_heated=true
+sb_heat_dis=1.0
 
 function reset_sp()
-	player_x=64
-	player_y=70
-	sp_health=sp_max_health
-	sp_heat=200.0 --testing
+	sb_x=64
+	sb_y=70
+	sb_health=sb_max_health
+	sb_heat=200.0 --testing
 end
 
 --to skip navigating in the map
@@ -135,7 +133,7 @@ end
 
 function map_mode()
 	cls()
-	player_moved=false
+	sb_moved=false
 	
 	player_control()
 	draw_map()
@@ -148,7 +146,7 @@ end
 
 function stage_mode()
 	cls()
-	player_moved=false
+	sb_moved=false
 	
 	player_control()
 	gun_control()
@@ -168,13 +166,13 @@ function stage_mode()
 			z_gun.heat=0
 		end
 	end
-	if sp_heat > sp_max_heat then
-		sp_heated=true
+	if sb_heat > sb_max_heat then
+		sb_heated=true
 	end
-	sp_heat-=sp_heat_dis
-	if sp_heat<0 then
-		sp_heat=0.0
-		sp_heated=false
+	sb_heat-=sb_heat_dis
+	if sb_heat<0 then
+		sb_heat=0.0
+		sb_heated=false
 	end
 
 end
@@ -203,7 +201,7 @@ function draw_hud()
 	draw_gun_hud(0,x_gun)
 	--draw g meter
 	spr(12,85,0)
-	health_meter(91,1,sp_health)
+	health_meter(91,1,sb_health)
 	
 end
 
@@ -235,10 +233,10 @@ function health_meter(x,y)
 	--heat meter
 	gi=1*2
 	
-	warning=sp_health <=
-		sp_max_health/2
-	danger=sp_health <=
-		sp_max_health/4
+	warning=sb_health <=
+		sb_max_health/2
+	danger=sb_health <=
+		sb_max_health/4
 	col=11 --green
 	if warning then
 		col=10 --yellow
@@ -251,7 +249,7 @@ function health_meter(x,y)
 	y2=y+5
 	rectfill(x1,y1,x2,y2,col)
 	if (acnt%4==0 or acnt%2==0) and
-				sp_heated then
+				sb_heated then
 		--blinks red until cooled to 0
 		rectfill(
 			x+12,y,x+2,
@@ -297,38 +295,38 @@ function player_control()
 	d=3
 	bx=5
 	bz=4
-	x=player_x
-	y=player_y
+	x=sb_x
+	y=sb_y
 	if btn(l) then
-		player_x-=player_speed
+		sb_x-=player_speed
 	end
 	if btn(r) then
-		player_x+=player_speed
+		sb_x+=player_speed
 	end
 	if btn(u) then
-		player_y-=player_speed
+		sb_y-=player_speed
 	end
 	if btn(d) then
-		player_y+=player_speed
+		sb_y+=player_speed
 	end
-	if player_y != y or 
-			 player_x != x then
-			 player_moved=true
+	if sb_y != y or 
+			 sb_x != x then
+			 sb_moved=true
 	else
-			player_moved=false
+			sb_moved=false
 	end
 	--keep from going out of bounds
 	m=midline
 	if not in_stage then
 		m=1
 	end
-	if player_y<m or
-				player_y>bot_border then
-		player_y=y
+	if sb_y<m or
+				sb_y>bot_border then
+		sb_y=y
 	end
-	if player_x<l_border or
-				player_x>r_border then
-		player_x=x
+	if sb_x<l_border or
+				sb_x>r_border then
+		sb_x=x
 	end
 end
 
@@ -336,8 +334,8 @@ end
 function gun_control()
 	bx=5
 	bz=4
-	x=player_x
-	y=player_y
+	x=sb_x
+	y=sb_y
 	if btn(bx) then
 		gun=x_gun
 		spec=x_gun.spec
@@ -370,16 +368,16 @@ end
 --drawing
 
 function draw_player()
-	x=player_x
-	y=player_y
+	x=sb_x
+	y=sb_y
 	
-	if player_moved then
-			spr(track_anim[
-				1+(acnt%#track_anim)],
-				player_x,player_y)
+	if sb_moved then
+			spr(sb_anim[
+				1+(acnt%#sb_anim)],
+				sb_x,sb_y)
 	else
-			spr(track_anim[1],
-				player_x,player_y)
+			spr(sb_anim[1],
+				sb_x,sb_y)
 	end
 end
 
@@ -433,8 +431,8 @@ function draw_bullets()
 end
 
 function shoot_pistol()
-	x1=player_x+3
-	y=player_y
+	x1=sb_x+3
+	y=sb_y
 	blt1=blt_straight(x1,y)
 	add(bullets,blt1)
 end
@@ -584,8 +582,8 @@ end
 
 function check_player_choice()
 	for l in all(locations) do
-		if check_col(player_x,
-							player_y,
+		if check_col(sb_x,
+							sb_y,
 							8,
 							8,
 							l.x,
