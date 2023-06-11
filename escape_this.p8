@@ -59,7 +59,7 @@ function init_guns()
 		charge=0,
 		--each projectile increases
 		--heat by this amount
-		heat_rate=1.5,
+		heat_rate=10.0,
 		cool_rate=1.0,
 		dmg=2,
 		rate=5,
@@ -119,7 +119,7 @@ sb_speed=1.0
 sb_rate_mod=1.0
 --while gun is overheated add
 --this amount to sb_heat
-sb_gun_overheat=1.0
+sb_gun_overheat=10.0
 
 function reset_sp()
 	sb_x=64.0
