@@ -80,6 +80,8 @@ function init_guns()
 		dmg_mul=1.0,
 		heated=false,
 		--max heat
+		--note: heat over 100 is
+		--considered overheated
 		max_heat=150,
 		--multipler for cool rate
 		cool_mod=1.0,
@@ -117,9 +119,9 @@ sb_gun_heat_mul=1.0
 sb_speed=1.0
 --how quick of fire rate
 sb_rate_mod=1.0
---while gun is overheated add
+--while a gun is overheated add
 --this amount to sb_heat
-sb_gun_overheat=10.0
+sb_gun_overheat=40.0
 
 function reset_sp()
 	sb_x=64.0
@@ -229,7 +231,7 @@ end
 --hud
 
 health_col={8,9,10,11}
-heat_col={1,12,11,10,9,8}
+heat_col={12,11,10,9,8,8}
 
 function draw_hud()
 	--10, 11
@@ -255,15 +257,18 @@ function draw_gun_hud(offset,gun)
 	end
 	spr(lbl,offset,0)
 	heat_meter(offset+6,1,
-		flr(gun.heat))
-	for i=1,5 do
-		gi=i*3
-		col=0
-		rectfill(
-			offset+19+gi,3,
-			offset+20+gi,5,
-			col
-		)
+		flr(gun.heat),
+			flr(gun.max_heat))
+	if gun.spec.charge>0 then
+		for i=1,5 do
+			gi=i*3
+			col=0
+			rectfill(
+				offset+19+gi,3,
+				offset+20+gi,5,
+				col
+			)
+		end
 	end
 	palt(0, true)
 end
@@ -297,18 +302,22 @@ function health_meter(x,y)
 	end
 end
 
-function heat_meter(x,y,heat)
+function heat_meter(x,y,heat,
+			max_heat)
 --heat meter
 	for i=1,6 do
 		gi=i*2
-		if heat >= i*10 then
+		--10 pixel wide bars
+		tmp=(i*10)
+		tmp=(max_heat/60)*tmp
+		if heat >= tmp then
 			rectfill(
 				x+gi,y,x+1+gi,
 				y+5,
 				heat_col[i]
 				)
 				if (acnt%4==0 or acnt%2==0) and
-							heat >= 70 then
+							heat >= 100 then
 					rectfill(
 						x+gi,y,x+1+gi,
 						y+5,8
@@ -423,6 +432,12 @@ function draw_player()
 	anim=sb_anim
 	if sb_heated then
 		anim=sb_heated_anim
+		--particle effects
+		for i=0,4 do
+			rx=(x-1)+rnd(10)
+			ry=(y-2)+rnd(8)
+			pset(rx, ry, 8)
+		end
 	end
 	
 	if sb_moved then
