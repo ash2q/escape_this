@@ -58,7 +58,7 @@ function init_guns()
 		lbl=10,
 		charge=0,
 		--each projectile increases
-		--heat by this amount
+		--sb_heat by this amount
 		heat_rate=10.0,
 		cool_rate=1.0,
 		dmg=2,
@@ -105,14 +105,14 @@ sb_y=70
 sb_moved=false
 
 sb_heat=0.0
-sb_max_heat=200
+sb_max_heat=400
 sb_health=100
 --maximum health
 sb_max_health=100
 --if heated
 sb_heated=true
 --rate at which sb cools
-sb_cool=2.0
+sb_cool=1.5
 --multiplier for gun heat
 sb_gun_heat_mul=1.0
 --speed of movement
@@ -135,6 +135,7 @@ dev_shortcut = true
 
 function _init()
 	init_guns()
+	init_enemies()
 	if dev_shortcut then
 		reset_sp()
 		current_mode=stage_mode
@@ -188,12 +189,14 @@ function stage_mode()
 	
 	player_control()
 	gun_control()
+	enemy_control()
 	
 	draw_player()
 	draw_enemies()
 	
 	draw_bullets()
 	draw_hud()
+	
 	x_gun.heat-=
 		x_gun.spec.cool_rate*
 		x_gun.cool_mod
@@ -209,6 +212,7 @@ function stage_mode()
 	end
 	if sb_heat > sb_max_heat then
 		sb_heated=true
+		sb_heat=sb_max_heat
 	end
 	sb_heat-=sb_cool
 	if sb_heat<0 then
@@ -387,12 +391,7 @@ function gun_control()
 	spec=x_gun.spec
 	if btn(bx) then
 		--do rate of fire
-		if x_gun.r>=x_gun.spec.rate then
-			x_gun.r=0
-		else
-			x_gun.r+=sb_rate_mod
-		end
-		if x_gun.r==0 then
+		if x_fire_rate() then
 			--shoot bullet now
 			if x_gun.heat>100 then
 				spec.shoot_heated()
@@ -405,22 +404,30 @@ function gun_control()
 			 sb_gun_heat_mul
 			--x_gun.heat+=spec.heat_rate
 			--x_gun.heat*=sb_gun_heat_mul
-			if x_gun.heat>x_gun.max_heat
-			 then
-				x_gun.heat=x_gun.max_heat
+			if x_gun.heat>100
+	 	then
 				sb_heat+=sb_gun_overheat
 			end
+		else
+			--in between bullets
 		end
-	else
-		--x_gun.c=0
-	end
+	end --end if btn(x)
+	if x_gun.heat>x_gun.max_heat
+		then
+  x_gun.heat=x_gun.max_heat
+ end
 	x_gun.r=max(x_gun.r,0)
 	--z_gun.r=max(z_gun.r,0)
 end
 
 --this implements rate of fire
 function x_fire_rate()
-
+	if x_gun.r>=x_gun.spec.rate then
+		x_gun.r=0
+	else
+		x_gun.r+=sb_rate_mod
+	end
+	return x_gun.r==0
 end
 -->8
 --drawing
@@ -452,8 +459,8 @@ end
 
 function draw_enemies()
 	for e in all(enemies) do
-		tmp=acnt%#e.e.anim
-		spr(e.e.anim[1+tmp],
+		tmp=acnt%#e.spec.anim
+		spr(e.spec.anim[1+tmp],
 			e.x, e.y)
 	end
 end
@@ -521,6 +528,9 @@ function blt_straight(x,y,dmg)
 	blt.size=1
 	blt.dmg=dmg
 	blt.steps=1
+	--note be careful, speed
+	--shouldn't be too fast
+	blt.speed=1.0
 	blt.friendly=true
 	blt.sprite=-7
 	blt.hit_fn=hit_blt
@@ -532,6 +542,15 @@ end
 function blt_heated_straight(x,y,dmg)
 	blt=blt_straight(x,y,dmg)
 	blt.sprite=-8
+	return blt
+end
+
+function blt_line(x,y,dmg)
+	--get default
+	blt=blt_straight(x,y,dmg)
+	blt.xend=sb_x+4
+	blt.yend=sb_y+4
+	blt.step_fn=step_line
 	return blt
 end
 
@@ -550,53 +569,101 @@ function col_pixel(x1,y1,x2,y2,
 end
 
 
--->8
---step functions
-
 function step_straight(b)
 	--modify x,y
 	if b.x<b.xend then
-		b.x+=1
+		b.x+=b.speed
 	elseif b.x>b.xend then
-		b.x-=1
+		b.x-=b.speed
 	end
 	if b.y<b.yend then
-		b.y+=1
+		b.y+=b.speed
 	elseif b.y>b.yend then
-		b.y-=1
+		b.y-=b.speed
 	end
-	
-	return b
 end
+
+--follows a fixed line 
+--toward end position
+function step_line(b)
+	if b.xstart==nil then
+		b.xstart=b.x
+	end
+	if b.ystart==nil then
+		b.ystart=b.y
+	end
+	xd=b.xstart-b.xend
+	yd=b.ystart-b.yend
+	ang=atan2(xd,yd)
+	b.x-=b.speed*cos(ang)
+	b.y-=b.speed*sin(ang)	
+end
+
 -->8
 --enemies
 
 --enemy that stays still and 
 --shoots toward the location
 --of the player sprite
-enemy_spitter={
-	anim={16,17,18,19},
-	--speed of shooting bullets
-	speed=2,
-	gun=chain_gun,
-	trace_fn=trace_still,
-	health=5
-}
+
+e_spec_spitter=nil
+
+function init_enemies()
+	e_spec_spitter={
+		anim={16,17,18,19},
+		--speed of shooting bullets
+		speed=1.0,
+		gun=chain_gun,
+		trace=trace_still,
+		update=spitter_update,
+		health=5,
+		rate=20,
+		dmg=5
+	}
+end
 
 function add_spitter(x,y)
 	spitter={
 		x=x,
 		y=y,
-		e=enemy_spitter
+		rate_mul=1.0,
+		dmg_mul=1.0,
+		spec=e_spec_spitter
 	}
 	add(enemies,spitter)
+end
+
+function enemy_control()
+	for e in all(enemies) do
+		e.spec.trace(e)
+		e.spec.update(e)
+	end
 end
 
 --traces are enemy movement
 --patterns
 function trace_still(e)
 	--do nothing
-	return e
+end
+
+function spitter_update(e)
+	if e.r==nil then
+		e.r=0
+	end
+	if e.r<e.spec.rate*e.rate_mul
+	 then
+		e.r+=1
+		return
+	end
+	e.r=0
+	printh("fire")
+	--fire bullet
+	blt=blt_line(e.x+4,e.y+8,
+			e.spec.dmg*e.dmg_mul)
+	blt.friendly=false
+	blt.speed=0.8
+	add(bullets,blt)
+	
 end
 
 -->8
