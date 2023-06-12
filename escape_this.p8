@@ -69,7 +69,7 @@ function init_guns()
 	
 	--x is primary/fast
 	x_gun={
-		--spec should be immutable
+		--spec should be const
 		spec=chain_gun,
 		heat=120.0,
 		--multiplier for heat rate
@@ -111,6 +111,9 @@ sb_health=100
 sb_max_health=100
 --if heated
 sb_heated=true
+--incoming damage increase for
+--being heated
+sb_heated_mul=2.0
 --rate at which sb cools
 sb_cool=1.5
 --multiplier for gun heat
@@ -122,12 +125,28 @@ sb_rate_mod=1.0
 --while a gun is overheated add
 --this amount to sb_heat
 sb_gun_overheat=40.0
+--invincibility
+sb_inv_dur=100
+sb_inv_count=0
+
+extra_lives=0
+
+current_stage=nil
 
 function reset_sb()
 	sb_x=64.0
 	sb_y=70.0
 	sb_health=sb_max_health
-	sb_heat=200.0 --testing
+	--sb_heat=200.0 --testing
+end
+
+function reset_stage()
+	reset_sb()
+	enemies={}
+	bullets={}
+	explosions={}
+	current_mode=stage_mode
+ current_stage()
 end
 
 --to skip navigating in the map
@@ -225,8 +244,36 @@ function stage_mode()
 		sb_heat=0.0
 		sb_heated=false
 	end
+	if sb_health<=0 then
+		extra_lives-=1
+		current_mode=game_over_mode
+		
+	end
 
 end
+
+function game_over_mode()
+	cls()
+	if extra_lives<0 then
+		print("it seems as though you")
+		print("could not escape this")
+		print("reboot(🅾️)")
+		if btn(4) then
+
+			extcmd("reset")
+			stop()
+		end
+	else
+		print("it seems as though you")
+		print("have another chance")
+		print("lives: "..extra_lives)
+		print("try again(🅾️)")
+		if btn(4) then
+			reset_stage()
+		end
+	end
+end
+
 
 function _update()	
 	if acnt > 1000 then
@@ -251,9 +298,10 @@ function draw_hud()
 	--draw z meter
 	draw_gun_hud(0,x_gun)
 	--draw g meter
-	spr(12,85,0)
+	spr(12,83,0)
 	health_meter(91,1,sb_health)
 	
+	print("x"..extra_lives,106,2,7)
 end
 
 function draw_gun_hud(offset,gun)
@@ -285,30 +333,46 @@ end
 
 function health_meter(x,y)
 	--heat meter
-	gi=1*2
-	
 	warning=sb_health <=
 		sb_max_health/2
 	danger=sb_health <=
 		sb_max_health/4
 	col=11 --green
-	if warning then
-		col=10 --yellow
-	elseif danger then
-		col=8
+	if danger then
+		col=8 --yellow
+	elseif warning then
+		col=10
 	end
-	x1=x+12
-	x2=x+2
+	x1=x
+	x2=x+12
 	y1=y
 	y2=y+5
-	rectfill(x1,y1,x2,y2,col)
+	--black box
+	rectfill(x1,y1,x2,y2,0)
+	--draw bar
+	rectfill(
+		x,y,
+		x+(12.0*((sb_health+.0)
+			/sb_max_health)),
+		y+5,
+		col
+		)
+
+		--rectfill(x1,y1,x+i*2,y2,col)
 	if (acnt%4==0 or acnt%2==0) and
 				sb_heated then
 		--blinks red until cooled to 0
-		rectfill(
-			x+12,y,x+2,
-			y+5,8
-			)
+		if not danger then
+			rectfill(
+				x+12,y,x+2,
+				y+5,8
+				)
+		else
+			rectfill(
+				x+12,y,x+2,
+				y+5,0
+				)
+		end
 	end
 end
 
@@ -395,7 +459,7 @@ function gun_control()
 	bz=4
 	x=sb_x
 	y=sb_y
-	spec=x_gun.spec
+	local spec=x_gun.spec
 	if btn(bx) then
 		--do rate of fire
 		if x_fire_rate() then
@@ -425,6 +489,9 @@ function gun_control()
  end
 	x_gun.r=max(x_gun.r,0)
 	--z_gun.r=max(z_gun.r,0)
+	if sb_inv_count>0 then
+		sb_inv_count-=1
+	end
 end
 
 --this implements rate of fire
@@ -453,14 +520,16 @@ function draw_player()
 			pset(rx, ry, 8)
 		end
 	end
-	
-	if sb_moved then
-			spr(anim[
-				1+(acnt%#anim)],
-				sb_x-4,sb_y-4)
-	else
-			spr(anim[1],
-				sb_x-4,sb_y-4)
+	if sb_inv_count==0 
+				or acnt%3==0 then
+		if sb_moved then
+				spr(anim[
+					1+(acnt%#anim)],
+					sb_x-4,sb_y-4)
+		else
+				spr(anim[1],
+					sb_x-4,sb_y-4)
+		end
 	end
 end
 
@@ -516,17 +585,34 @@ function move_bullets()
 		b.step_fn(b)
 		--x,y now updated
 		--check collisions
-		if b.friendly then
-			for e in all(enemies) do
-			--deduct centering offset
-				if b.collision_fn(b,
-						e.x-4,e.y-4)
-				 then
-				 e.health-=b.dmg
-				 explode_hit(e,b.x,b.y)
-				 del(bullets,b)
-				end
+		check_bullet(b)
+	end
+end
+
+function check_bullet(b)
+	if b.friendly then
+		for e in all(enemies) do
+	--deduct centering offset
+			if b.collision_fn(b,
+					e.x-4,e.y-4)
+			 then
+			 e.health-=b.dmg
+			 explode_hit(b.x,b.y,e)
+			 del(bullets,b)
 			end
+		end
+	else
+		if b.collision_fn(b,
+			sb_x-4, sb_y-4)
+		then
+			explode_hit(b.x,b.y)
+			if sb_inv_count==0 then
+				sb_health-=
+						b.dmg*sb_heated_mul
+				sb_inv_count+=
+						sb_inv_dur
+			end
+			del(bullets,b)
 		end
 	end
 end
@@ -656,20 +742,15 @@ function step_line(b)
 	b.y-=b.speed*sin(ang)	
 end
 
-
-function explode_hit(e,x,y)
-	ex={}
+--e is enemy. optional
+function explode_hit(x,y,e)
+	local ex={}
 	ex.anim=hit_anim
 	ex.frame=1
-	if e==nil then
-		--it's on spiderbot
-	else
-		--it's on an enemy
-		ex.e = e
+	ex.e = e
 		--centering offset
-		ex.x=x-4
-		ex.y=y-4
-	end
+	ex.x=x-4
+	ex.y=y-4
 	add(explosions,ex)
 	return ex
 end
@@ -692,7 +773,7 @@ function init_enemies()
 		update=spitter_update,
 		health=50,
 		rate=20,
-		dmg=5
+		dmg=30
 	}
 end
 
@@ -774,13 +855,13 @@ function reactor()
 	if 
 		reactor_depth>#reactor_stages
 		then
-		reactor_stages
-			[#reactor_stages]()
+		current_stage=reactor_stages
+			[#reactor_stages]
 	else
-		reactor_stages
-			[reactor_depth]()
+		current_stage=reactor_stages
+			[reactor_depth]
 	end
-	
+	current_stage()
 end
 
 locations={}
