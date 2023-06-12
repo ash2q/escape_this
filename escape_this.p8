@@ -11,11 +11,11 @@ __lua__
 --provides for anim. of still entities
 acnt=1
 
-top_border=9
+top_border=20
 bot_border=120
 midline=60
 r_border=120
-l_border=0
+l_border=4
 
 
 enemies={}
@@ -196,6 +196,7 @@ function stage_mode()
 	
 	draw_bullets()
 	draw_hud()
+	clean_bullets()
 	
 	x_gun.heat-=
 		x_gun.spec.cool_rate*
@@ -369,7 +370,8 @@ function player_control()
 	end
 	--keep from going out of bounds
 	m=midline
-	if not in_stage then
+	if not current_mode==stage_mode
+	 then
 		m=1
 	end
 	if sb_y<m or
@@ -441,8 +443,8 @@ function draw_player()
 		anim=sb_heated_anim
 		--particle effects
 		for i=0,4 do
-			rx=(x-1)+rnd(10)
-			ry=(y-2)+rnd(8)
+			rx=(x-5)+rnd(10)
+			ry=(y-6)+rnd(8)
 			pset(rx, ry, 8)
 		end
 	end
@@ -450,10 +452,10 @@ function draw_player()
 	if sb_moved then
 			spr(anim[
 				1+(acnt%#anim)],
-				sb_x,sb_y)
+				sb_x-4,sb_y-4)
 	else
 			spr(anim[1],
-				sb_x,sb_y)
+				sb_x-4,sb_y-4)
 	end
 end
 
@@ -461,7 +463,7 @@ function draw_enemies()
 	for e in all(enemies) do
 		tmp=acnt%#e.spec.anim
 		spr(e.spec.anim[1+tmp],
-			e.x, e.y)
+			e.x-4, e.y-4)
 	end
 end
 
@@ -480,39 +482,37 @@ bullets={}
 function draw_bullets()
 	printh(#bullets)
 	for b in all(bullets) do
-		printh("+")
-		printh(#b)
-		for k,v in all(b) do
-			printh(k)
-			printh(v)
-		end
-		printh("----")
 		if b.sprite<0 then
 			pset(b.x,b.y,abs(b.sprite))
 		else
 		 spr(b.x,b.y,b.sprite)
 		end
 		b.step_fn(b)
-		
-		if b.friendly then
-		--	b.y-=1
-		else
-		--	b.y+=1
+	end
+end
+
+function clean_bullets()
+	for b in all(bullets) do
+		if b.x<0 or b.y<0 or
+					b.x>128 or b.y>128 then
+			del(bullets,b)
 		end
 	end
 end
 
 function shoot_chain()
-	x1=sb_x+3
-	y=sb_y
+	x1=sb_x
+	--undo draw centering
+	y=sb_y-4
 	dmg=x_gun.spec.dmg
 	blt=blt_straight(x1,y,dmg)
 	add(bullets,blt)
 end
 
 function shoot_heated_chain()
-	x1=sb_x+3
-	y=sb_y
+	x1=sb_x
+	--undo draw centering
+	y=sb_y-4
 	dmg=x_gun.spec.dmg
 	blt=blt_heated_straight(x1,y,
 		dmg)
@@ -548,8 +548,8 @@ end
 function blt_line(x,y,dmg)
 	--get default
 	blt=blt_straight(x,y,dmg)
-	blt.xend=sb_x+4
-	blt.yend=sb_y+4
+	blt.xend=sb_x
+	blt.yend=sb_y
 	blt.step_fn=step_line
 	return blt
 end
@@ -560,12 +560,14 @@ end
 
 function col_pixel(x1,y1,x2,y2,
 			w,h)
-			--defaults to 8x8
-			w=w or 8
-			h=h or 8
 --x1,y1 = pixel bullet
 --x2,y2 = target sprite to check
 --w,h = size of target sprite
+	--defaults to 8x8
+	w=w or 8
+	h=h or 8
+	
+	
 end
 
 
@@ -658,7 +660,7 @@ function spitter_update(e)
 	e.r=0
 	printh("fire")
 	--fire bullet
-	blt=blt_line(e.x+4,e.y+8,
+	blt=blt_line(e.x,e.y+4,
 			e.spec.dmg*e.dmg_mul)
 	blt.friendly=false
 	blt.speed=0.8
@@ -779,7 +781,7 @@ __gfx__
 05066050006c060000006660066600000060c600006006000a6cc6a0000066600666000050066005506000055067760554444445666006666511115657a66a75
 0007700000666600000000000000000000666600006666000aa66aa0000000000000000080077008500000055606606554000045006006000696696006766760
 00077000000770000000000000000000000770000007700000a77a00000000000000000090077009555555555555555555555555006666000066660000566500
-00555500055555500655556005555550000000000000000000000000000000000000000000000000000000000000000000000000000000000000000055555555
+00555500055555500655556005555550000660000006600000066000000660000000000000000000000000000000000000000000000000000000000055555555
 05555550556556556565565655555555006666000066660000666600006666000000000000000000000900000000000000000000000000000000000050000005
 556666555666666556a66a655566665506c88c6006c88c6006c88c6006c88c600000000000900000009000000000000000000000000000000000000050000005
 5560965555609655556906555569065506c33c6006c33c6006c33c6006c33c600009000000090000900909000000000000000000000000000000000050000005
@@ -787,7 +789,7 @@ __gfx__
 556666555666666556a66a65556666550ffffff00ffffffffffffffffffffff0009009000090090000900900000000000000000000000000000aa00050000005
 05566550556666556566665655566555ff0000ffff00000ff000000ff00000ff000000000000000000000000000000000009900000a99a0000a99a0050000005
 00566500055665500656656005566550f000000ff0000000000000000000000f0000000000000000000000000000000000099000000990000009900055555555
-00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00099000000990000009900000099000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 00999900009999000099990000999900000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 09a88a9009a88a9009a88a9009a88a90000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 09a33a9009a33a9009a33a9009a33a90000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
