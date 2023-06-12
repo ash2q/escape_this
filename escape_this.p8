@@ -23,27 +23,49 @@ current_mode=nil
 
 in_prompt=false
 
+blink_spec={}
+
+
+
+function init_boosts()
+	blink_spec={
+		charge=0,
+		regen_rate=200,
+		activate_fn=blink_boost,
+		update_fn=blink_update,
+		draw_fn=draw_blink,
+		lbl=48,
+		--time before can activate 
+		--again
+		cooldown=20,
+		desc="bullet blink"
+	}
+		
+	
+end
+
+--modules are general stat
+--upgrades and some special
+--upgrades
+modules={}
+
+
+function equip_dev_mode()
+	m={
+		desc="dev mode",
+		lbl=52
+	}
+	add(modules,m)
+	add(pocket_m,m)
+end
+
 empty_gun={}
 beam_gun={}
-chain_gun={}
+simple_chain_gun={}
+double_chain_gun={}
 x_gun={}
 z_gun={}
 
-boost_blink={}
-sb_boost={}
-
-function init_boosts()
-	boost_blink={
-		charge=0,
-		--count for charge purpose
-		c=0,
-		activate_fn=blink_buff,
-		update=nil
-		
-	}
-end
-
---type 1
 function init_guns()
 	--type 0
 	empty_gun={
@@ -56,19 +78,17 @@ function init_guns()
 		charge=0,
 		heat_rate=0,
 		damage_heat_mod=0,
-		rate=0
+		rate=0,
+		desc="empty gun"
 	}
 	beam_gun={
-		t=1,
 		lbl=11,
 		charge=30,
 		heat_rate=2,
 		damage_heat_mod=10,
 		rate=5
 	}
-	--type 2
-	chain_gun={
-		t=2,
+	simple_chain_gun={
 		lbl=10,
 		charge=0,
 		--each projectile increases
@@ -78,7 +98,21 @@ function init_guns()
 		dmg=5,
 		rate=5,
 		shoot=shoot_chain,
-		shoot_heated=shoot_heated_chain
+		shoot_heated=shoot_heated_chain,
+		desc="simple chain gun"
+	}
+	double_chain_gun={
+		lbl=10,
+		charge=0,
+		--each projectile increases
+		--sb_heat by this amount
+		heat_rate=5.0,
+		cool_rate=1.0,
+		dmg=4,
+		rate=3,
+		shoot=shoot_chain,
+		shoot_heated=shoot_heated_chain,
+		desc="double chain gun"
 	}
 	
 	--x is primary/fast
@@ -142,6 +176,12 @@ sb_gun_overheat=40.0
 --invincibility
 sb_inv_dur=100
 sb_inv_count=0
+--how many frames must wait to
+--get another charge
+sb_boost_timer=60
+sb_boost_max_charges=2
+sb_boost_charges=1
+sb_boost=nil
 
 extra_lives=0
 
@@ -170,10 +210,18 @@ dev_shortcut = true
 function _init()
 	init_guns()
 	init_enemies()
+	init_boosts()
 	reset_sb()
 	if dev_shortcut then
-		current_mode=stage_mode
-		reactor()
+		--testing
+		equip_simple_chain()
+		equip_double_chain()
+		equip_blink()
+		equip_dev_mode()
+		--load_pockets()
+		current_mode=inv_mode
+		--current_mode=stage_mode
+		--reactor()
 	else
 		current_mode=map_mode
 		build_map()
@@ -224,9 +272,11 @@ function stage_mode()
 	player_control()
 	gun_control()
 	enemy_control()
+	boost_control()
 	
 	--collisions
 	move_bullets()
+	boost_update()
 	
 	draw_player()
 	draw_enemies()
@@ -234,6 +284,8 @@ function stage_mode()
 	draw_bullets()
 	draw_explosions()
 	draw_hud()
+	draw_boosts()
+	
 	clean_bullets()
 	clean_enemies()
 	
@@ -262,7 +314,6 @@ function stage_mode()
 	if sb_health<=0 then
 		extra_lives-=1
 		current_mode=game_over_mode
-		
 	end
 
 end
@@ -298,7 +349,89 @@ function _update()
 	current_mode()
 end
 
+pocket_x={}
+pocket_z={}
+pocket_b={}
+pocket_m={}
 
+function load_pockets()
+	pocket_x={x_gun.spec}
+	if z_gun.spec!=nil then
+		pocket_z={z_gun.spec}
+	end
+	if sb_boost!=nil then
+		pocket_b={sb_boost.spec}
+	end
+	for m in all(modules) do
+		add(pocket_m,m)
+	end
+end
+
+function inv_mode()
+	cls()
+	color(7)
+	print("❎ to equip")
+	print("equipped in yellow")
+	print("pockets:")
+	--offset includes
+	--item icon and arrow
+	x=14
+	y=20
+	for g in all(pocket_x) do
+		c=3
+		if g==x_gun.spec then
+			c=10
+		end
+		print_item(g,x,y,c)
+		y+=10
+	end
+	line(0,y-1,128,y-1,6)
+	y+=1
+	for g in all(pocket_z) do
+		if g.spec==nil then
+			break
+		end
+		c=3
+		if g==z_gun.spec then
+			c=10
+		end
+		print_item(g,x,y,c)
+		y+=10
+	end
+	if #pocket_z!=0 then
+		line(0,y-1,128,y-1,6)
+		y+=1
+	end
+	for b in all(pocket_b) do
+		c=3
+		if b!=nil and 
+					b==sb_boost.spec then
+			c=10
+		end
+		print_item(b,x,y,c)
+		y+=10
+	end
+	if #pocket_b!=0 then
+		line(0,y-1,128,y-1,6)
+		y+=1
+	end
+	for m in all(pocket_m) do
+		--if b!=nil and 
+		--			b==sb_boost.spec then
+		--end
+		c=10
+		print_item(m,x,y,c)
+		y+=8
+	end
+end
+
+function print_item(g,x,y,col)
+		print(g.desc,x,y+2,c)
+	 color(3)
+		--spr(49, x-14, y)
+		spr(g.lbl, x-10,y)
+		y+=8
+end
 -->8
 --hud
 
@@ -317,6 +450,7 @@ function draw_hud()
 	health_meter(91,1,sb_health)
 	
 	print("x"..extra_lives,106,2,7)
+	draw_boost_hud()
 end
 
 function draw_gun_hud(offset,gun)
@@ -421,8 +555,33 @@ function heat_meter(x,y,heat,
 		end
 	end
 end
+
+function draw_boost_hud()
+	palt(0, false)
+	boost=nil
+	if sb_boost==nil then
+	--empty label
+		spr(31,60,0)
+		palt(0,true)
+		return
+	end
+	boost=sb_boost
+	spr(boost.spec.lbl,60,0)
+	for i=1,sb_boost_max_charges do
+		x=68+(i-1)*3
+		y=3
+		if sb_boost_charges>i-1 then
+			rectfill(x,y,x+1,y+2,7)
+		else
+			rectfill(x,y,x+1,y+2,0)
+		end
+	end
+	
+	
+	palt(0,true)
+end
 -->8
---controls and buffs
+--controls and boosts
 
 
 
@@ -476,7 +635,7 @@ function gun_control()
 	x=sb_x
 	y=sb_y
 	local spec=x_gun.spec
-	if btn(bx) then
+	if btn(bx) and not btn(bz) then
 		--do rate of fire
 		if x_fire_rate() then
 			--shoot bullet now
@@ -513,11 +672,22 @@ end
 function boost_control()
 --🅾️ is 4
 --❎ is 5
-	if btn(5) and btn(4) then
-		--use buff
+	if sb_boost.cooldown>0 then
+		sb_boost.cooldown-=1
+		return
 	end
-	
+	if btn(5) and btn(4) then
+		if sb_boost_charges>0 then
+			--use boost immediately
+			sb_boost_charges-=1
+			sb_boost.cooldown=
+					sb_boost.spec.cooldown
+			sb_boost.spec.activate_fn(
+					sb_boost)
+			end
+	end
 end
+
 
 --this implements rate of fire
 function x_fire_rate()
@@ -529,9 +699,65 @@ function x_fire_rate()
 	return x_gun.r==0
 end
 
-function blink_buff()
-	
+function equip_simple_chain()
+	x_gun.spec=simple_chain_gun
+	add(pocket_x,x_gun.spec)
 end
+function equip_double_chain()
+	x_gun.spec=double_chain_gun
+	add(pocket_x,x_gun.spec)
+end
+
+
+function equip_blink()
+	sb_boost={
+		spec=blink_spec,
+		--when r is 0 a charge
+		--is added (if not full)
+		r=0,
+		--count for charge purpose
+		c=0,
+		frame_count=0,
+		cooldown=0
+	}
+	add(pocket_b,sb_boost.spec)
+	return sb_boost
+end
+		
+--deletes all enemy bullets
+function blink_boost(b)
+	b.frame_count=3
+	for b in all(bullets) do
+		if not b.friendly then
+			del(bullets,b)
+		end
+	end
+end
+
+function blink_update(b)
+	b.frame_count-=1
+end
+
+function boost_update()
+	if sb_boost==nil then
+		return
+	end
+	sb_boost.spec.update_fn(
+			sb_boost)
+	r=sb_boost.r
+	if r<=0 and 
+			sb_boost_charges<sb_boost_max_charges
+	 then
+		sb_boost_charges+=1
+		sb_boost.r=
+				sb_boost.spec.regen_rate
+	elseif r>0 then
+		sb_boost.r-=1
+	end
+end
+
+
+
 -->8
 --drawing
 
@@ -574,6 +800,19 @@ function draw_map()
  map(0,0,0,0,128,128)
 	for l in all(locations) do
 		--spr(l.loc.sprite,l.x,l.y,2,2)
+	end
+end
+
+function draw_boosts()
+	if sb_boost==nil then
+		return
+	end
+	sb_boost.spec.draw_fn(sb_boost)
+end
+
+function draw_blink(b)
+	if b.frame_count>0 then
+		rectfill(0,0,128,128,7)
 	end
 end
 -->8
@@ -636,8 +875,12 @@ function check_bullet(b)
 		then
 			explode_hit(b.x,b.y)
 			if sb_inv_count==0 then
-				sb_health-=
-						b.dmg*sb_heated_mul
+				if sb_heated then
+					sb_health-=
+							b.dmg*sb_heated_mul
+				else
+					sb_health-=b.dmg
+				end
 				sb_inv_count+=
 						sb_inv_dur
 			end
@@ -669,6 +912,7 @@ function shoot_chain()
 	y=sb_y-4
 	dmg=x_gun.spec.dmg
 	blt=blt_straight(x1,y,dmg)
+	blt.speed=1.5
 	add(bullets,blt)
 end
 
@@ -679,6 +923,7 @@ function shoot_heated_chain()
 	dmg=x_gun.spec.dmg
 	blt=blt_heated_straight(x1,y,
 		dmg)
+	blt.speed=1.5
 	add(bullets,blt)
 end
 
@@ -992,14 +1237,14 @@ __gfx__
 0ffffff00ffffffffffffffffffffff0000000000058850005899850089aa98000588500000550000005500000099000008998000055550050c11c0550800805
 ff0000ffff00000ff000000ff00000ff00000000000550000058850000899800000550000000000000000000000000000008800000055000500cc00550888805
 f000000ff0000000000000000000000f000000000000000000055000000880000000000000000000000000000000000000000000000000005555555555555555
-00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+55555555000000005555555555555555555555550000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+5006600500000000500bb00550099005500220050000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+5667766570000000500bb00550099005500220050000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+56788765770000005bbbbbb559999995522222250000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+56708765777000005bbbbbb559999995522222250000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+5667766577000000500bb00550099005500220050000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+5006600570000000500bb00550099005500220050000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+55555555000000005555555555555555555555550000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 55585055050505555777777777777775033333333333333055555555555555555555555555555555555555555555550500000000000000000000000000000000
 5650a55898955565577cccccc666666503ccccccccc3333077777777777777775555556555555555556555555555555500000000000000000000000000000000
 5659500550a58065577cccccc6555555039cc8ccaac3333077777777777777775555666655555555555545554555605500000000000000000000000000000000
