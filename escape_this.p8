@@ -55,7 +55,7 @@ function init_boosts()
 		--again
 		cooldown=20,
 		heat=30,
-		desc="(b) bullet blink",
+		name="(b) bullet blink",
 		pickup=nop,
 		drop=nop
 	}
@@ -92,7 +92,7 @@ end
 dev_mode_mod={}
 function init_modules()
 	dev_mode_mod={
-		desc="(m) dev mode",
+		name="(m) dev mode",
 		lbl=52,
 		do_effect=do_dev_mode,
 		undo_effect=undo_dev_mode,
@@ -136,7 +136,7 @@ function init_guns()
 		rate=5,
 		shoot=shoot_chain,
 		shoot_heated=shoot_heated_chain,
-		desc="(x) simple chain gun",
+		name="(x) simple chain gun",
 		stype=item_type.x_gun,
 		pickup=nop,
 		drop=nop
@@ -152,7 +152,7 @@ function init_guns()
 		rate=3,
 		shoot=shoot_chain,
 		shoot_heated=shoot_heated_chain,
-		desc="(x) double chain gun",
+		name="(x) double chain gun",
 		stype=item_type.x_gun,
 		pickup=nop,
 		drop=nop
@@ -631,7 +631,7 @@ function print_pocket(y)
 end
 
 function print_item(g,x,y,c)
-		print(g.desc,x,y+2,c)
+		print(g.name,x,y+2,c)
 		spr(g.lbl, x-10,y)
 		y+=8
 end
