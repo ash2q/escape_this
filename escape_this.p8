@@ -208,7 +208,7 @@ sb_currency=0
 --mod globals
 sb_expert_mod=false
 
-extra_lives=1
+extra_lives=0
 
 current_stage=nil
 
@@ -238,7 +238,11 @@ end
 dev_shortcut = false
 --dev_shortcut = true
 
+begin_time=0
+total_damage=0
+
 function _init()
+	begin_time=time()
 	printh("--init--")
 	init_guns()
 	init_enemies()
@@ -262,7 +266,7 @@ function _init()
 end
 
 
-prompt_msg=""
+prompt_msg_fn=nil
 prompt_confirm=nil
 prompt_cancel=nil
 --the human must take their
@@ -274,7 +278,7 @@ function prompt_mode()
 	end
 	cls()
 	color(7)
-	print(prompt_msg)
+	prompt_msg_fn()
 	if not human_reset then
 	 return
 	end
@@ -363,10 +367,11 @@ function stage_mode()
 		current_mode=game_over_mode
 	end
 	if #enemies==0 then
-		prompt_msg=
-		"stage complete!\n"..
-		"❎ to continue\n"..
-		"🅾️ to return to map"
+		prompt_msg_fn=function()
+			print("stage complete!\n"..
+				"❎ to continue\n"..
+				"🅾️ to return to map")
+			end
 		goto_prompt(next_stage,
 			stage_exit)
 		current_mode=prompt_mode
@@ -374,15 +379,36 @@ function stage_mode()
 	end
 end
 
+end_time=0
 function game_over_mode()
+	if end_time==0 then
+		end_time=time()
+	end
 	if btn()==0 then
 		human_reset=true
 	end
 	cls()
 	if extra_lives<0 then
-		print("it seems as though you")
-		print("could not escape this")
+		color(7)
+		print("you could not escape this")
+		print("pockets: metal: "..sb_currency)
+		y=12
+		y=print_pockets(y)
+		color(7)
+		stage="l-"
+		if in_reactor then
+			stage="r-"..reactor_depth
+		end
+		total_time=end_time-begin_time
+		print("stage: "..
+			stage..
+			", time: "..flr(total_time)..
+			"s",0,y)
+			y+=8
+		print("total damage: "..
+				total_damage)
 		print("❎ to reboot")
+		y+=8
 		if btn(5) and human_reset then
 			extcmd("reset")
 			stop()
@@ -394,6 +420,7 @@ function game_over_mode()
 				extra_lives)
 		print("❎ to try again")
 		if btn(5) and human_reset then
+			end_time=0
 			reset_stage()
 		end
 	end
@@ -485,11 +512,30 @@ function inv_mode()
 	inv_navigate()
 end
 
+function print_pockets(y)
+	x=10
+	for i in all(pocket_x) do
+		print_item(i,x,y,7)
+		y+=10
+	end
+	for i in all(pocket_z) do
+		print_item(i,x,y,7)
+		y+=10
+	end
+	for i in all(pocket_b) do
+		print_item(i,x,y,7)
+		y+=10
+	end
+	for i in all(pocket_m) do
+		print_item(i,x,y,7)
+		y+=10
+	end
+	return y
+end
 
-
-function print_item(g,x,y,col)
+function print_item(g,x,y,c)
 		print(g.desc,x,y+2,c)
-	 color(3)
+	 --color(3)
 		--
 		spr(g.lbl, x-10,y)
 		y+=8
@@ -1170,6 +1216,7 @@ function check_bullet(b)
 					e.x-4,e.y-4)
 			 then
 			 e.health-=b.dmg
+			 total_damage+=b.dmg
 			 explode_hit(b.x,b.y)
 			 del(bullets,b)
 			end
@@ -1646,7 +1693,9 @@ function check_player_choice()
 							16,
 							16) then
 			--player chose
-			prompt_msg=l.loc.msg
+			prompt_msg_fn=function()
+				print(l.loc.msg)
+			end
 			goto_prompt(l.loc.launches,
 					l.loc.cancel)
 			
