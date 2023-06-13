@@ -56,6 +56,10 @@ function init_boosts()
 		cooldown=20,
 		heat=30,
 		name="(b) bullet blink",
+		desc=
+"a mechanical eye which emits\n"..
+"a powerful burst of magnetic\n"..
+"energy upon blinking",
 		pickup=nop,
 		drop=nop
 	}
@@ -93,6 +97,10 @@ dev_mode_mod={}
 function init_modules()
 	dev_mode_mod={
 		name="(m) dev mode",
+		desc=
+"there seems to be a bug stuck\n"..
+"in the electronics. best to\n"..
+"discard it",
 		lbl=52,
 		do_effect=do_dev_mode,
 		undo_effect=undo_dev_mode,
@@ -137,6 +145,10 @@ function init_guns()
 		shoot=shoot_chain,
 		shoot_heated=shoot_heated_chain,
 		name="(x) simple chain gun",
+		desc=
+"a simple machine gun. seems to\n"..
+"give its user slightly more\n"..
+"health",
 		stype=item_type.x_gun,
 		pickup=nop,
 		drop=nop
@@ -153,6 +165,9 @@ function init_guns()
 		shoot=shoot_chain,
 		shoot_heated=shoot_heated_chain,
 		name="(x) double chain gun",
+		desc=
+"a double machine gun, shoots\n"..
+"fast, warms up even faster\n",
 		stype=item_type.x_gun,
 		pickup=nop,
 		drop=nop
@@ -475,7 +490,7 @@ function inv_mode()
 	y=20
 	lines={}
 	for g in all(sb_pocket) do
-		c=3
+		c=6
 		if equipped(g) then
 			c=10
 		end
@@ -486,6 +501,9 @@ function inv_mode()
 		print_item(g,x,y,c)
 		y+=10
 	end
+	rect(0,103,127,127,7)
+	item=lines[inv_line].i
+	print(item.desc,2,105,7)
 	inv_navigate(lines)
 end
 --1=x,2=z,3=b,4=m
