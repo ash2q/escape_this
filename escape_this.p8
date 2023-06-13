@@ -49,10 +49,22 @@ function init_boosts()
 		--again
 		cooldown=20,
 		heat=30,
-		desc="bullet blink"
+		desc="(b) bullet blink",
+		add_to_pocket=add_boost
 	}
-		
-	
+end
+
+function add_boost(a)
+	add(pocket_b,a)
+end
+function add_x_gun(a)
+	add(pocket_x,a)
+end
+function add_z_gun(a)
+	add(pocket_z,a)
+end
+function add_module(a)
+	add(pocket_m,a)
 end
 
 --modules are general stat
@@ -70,14 +82,15 @@ end
 
 function equip_dev_mode()
 	m={
-		desc="dev mode",
+		desc="(m) dev mode",
 		lbl=52,
 		do_effect=do_dev_mode,
-		undo_effect=undo_dev_mode
+		undo_effect=undo_dev_mode,
+		add_to_pocket=add_module
 	}
+	add_module(m)
 	m.do_effect()
 	add(modules,m)
-	add(pocket_m,m)
 end
 
 empty_gun={}
@@ -88,20 +101,6 @@ x_gun={}
 z_gun={}
 
 function init_guns()
-	--type 0
-	empty_gun={
-		t=0,
-		part=0,
-		lbl=32,
-		charge_anim={},
-		fire_anim={},
-		heat_color=0,
-		charge=0,
-		heat_rate=0,
-		damage_heat_mod=0,
-		rate=0,
-		desc="empty gun"
-	}
 	beam_gun={
 		lbl=11,
 		charge=30,
@@ -120,7 +119,8 @@ function init_guns()
 		rate=5,
 		shoot=shoot_chain,
 		shoot_heated=shoot_heated_chain,
-		desc="simple chain gun"
+		desc="(x) simple chain gun",
+		add_to_pocket=add_x_gun
 	}
 	double_chain_gun={
 		lbl=53,
@@ -133,7 +133,8 @@ function init_guns()
 		rate=3,
 		shoot=shoot_chain,
 		shoot_heated=shoot_heated_chain,
-		desc="double chain gun"
+		desc="(x) double chain gun",
+		add_to_pocket=add_x_gun
 	}
 	
 	--x is primary/fast
@@ -454,11 +455,13 @@ function inv_mode()
 	color(7)
 	print("❎=equip,⬅️=unequip")
 	print("equipped in yellow")
+	print("sizes: "..
+		"x=3, z=2, b=2, m=4")
 	print("➡️ to exit")
 	--offset includes
 	--item icon and arrow
 	x=14
-	y=20
+	y=28
 	for g in all(pocket_x) do
 		c=3
 		if g==x_gun.spec then
@@ -1028,11 +1031,11 @@ end
 
 function equip_simple_chain()
 	x_gun.spec=simple_chain_gun
-	add(pocket_x,x_gun.spec)
+	add_x_gun(x_gun.spec)
 end
 function equip_double_chain()
 	x_gun.spec=double_chain_gun
-	add(pocket_x,x_gun.spec)
+	add_x_gun(x_gun.spec)
 end
 
 
@@ -1047,7 +1050,7 @@ function equip_blink()
 		frame_count=0,
 		cooldown=0,
 	}
-	add(pocket_b,sb_boost.spec)
+	add_boost(sb_boost.spec)
 	return sb_boost
 end
 		
@@ -1732,6 +1735,11 @@ function stage_exit()
 end
 function stage_cancel()
 	back_to_map()
+end
+
+shop_pocket={}
+function shop_mode()
+	
 end
 __gfx__
 0007700000000000000000000000000000000000000000000cccccc0000009000090000090077009555555555555555555555555006666000066660000555500
