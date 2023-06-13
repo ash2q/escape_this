@@ -607,20 +607,18 @@ function inv_navigate()
 			unequip_from_lines(inv_line)
 		end
 	end
-	--trash
-	--this is broken, 
-	--maybe trash isn't needed?
-	--if btn(4) and not inv_pressed
-	--	then
-	--	inv_pressed=true
-	--	p=choose_pocket()
-	--	if not inv_equipped(p[l]) then
-	--		printh("trashing: "..l)
-	--		del(p,p[l])
-	--	else
-	--		printh("can't trash cause equipped")
-	--	end
-	--end
+	--dismantle
+ if btn(4) and not inv_pressed
+		then
+		inv_pressed=true
+		p=choose_pocket()
+		if not inv_equipped(p[l]) then
+			printh("trashing: "..l)
+			del(p,p[l])
+		else
+			printh("can't trash cause equipped")
+		end
+	end
 	if btn()==0 then
 		inv_pressed=false
 	end
