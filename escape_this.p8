@@ -26,6 +26,12 @@ function contains(t,v)
 	return false
 end
 
+item_type={
+	x_gun=1,
+	z_gun=2,
+	boost=3,
+	module=4
+}
 
 enemies={}
 current_mode=nil
@@ -36,9 +42,9 @@ in_prompt=false
 blink_spec={}
 
 
-
 function init_boosts()
 	blink_spec={
+		stype=item_type.boost,
 		charge=0,
 		regen_rate=200,
 		activate_fn=blink_boost,
@@ -50,22 +56,24 @@ function init_boosts()
 		cooldown=20,
 		heat=30,
 		desc="(b) bullet blink",
-		add_to_pocket=add_boost
+		pickup=nop,
+		drop=nop
+	}
+	sb_boost={
+ 	spec=nil,
+		--when r is 0 a charge
+		--is added (if not full)
+		r=0,
+		--count for charge purpose
+		c=0,
+		frame_count=0,
+		cooldown=0
 	}
 end
 
-function add_boost(a)
-	add(pocket_b,a)
+function nop()
 end
-function add_x_gun(a)
-	add(pocket_x,a)
-end
-function add_z_gun(a)
-	add(pocket_z,a)
-end
-function add_module(a)
-	add(pocket_m,a)
-end
+
 
 --modules are general stat
 --upgrades and some special
@@ -78,19 +86,28 @@ function do_dev_mode()
 end
 function undo_dev_mode()
 	printh("unequipped dev mode")
+	sb_currency-=100
 end
 
-function equip_dev_mode()
-	m={
+dev_mode_mod={}
+function init_modules()
+	dev_mode_mod={
 		desc="(m) dev mode",
 		lbl=52,
 		do_effect=do_dev_mode,
 		undo_effect=undo_dev_mode,
-		add_to_pocket=add_module
+		pickup=pickup_module,
+		drop=drop_module,
+		stype=item_type.module
 	}
-	add_module(m)
-	m.do_effect()
-	add(modules,m)
+end
+
+function pickup_module(m)
+	add(equipped_mods,m)
+end
+
+function drop_module(m)
+	del(equipped_mods,m)
 end
 
 empty_gun={}
@@ -120,7 +137,9 @@ function init_guns()
 		shoot=shoot_chain,
 		shoot_heated=shoot_heated_chain,
 		desc="(x) simple chain gun",
-		add_to_pocket=add_x_gun
+		stype=item_type.x_gun,
+		pickup=nop,
+		drop=nop
 	}
 	double_chain_gun={
 		lbl=53,
@@ -134,7 +153,9 @@ function init_guns()
 		shoot=shoot_chain,
 		shoot_heated=shoot_heated_chain,
 		desc="(x) double chain gun",
-		add_to_pocket=add_x_gun
+		stype=item_type.x_gun,
+		pickup=nop,
+		drop=nop
 	}
 	
 	--x is primary/fast
@@ -246,14 +267,15 @@ function _init()
 	begin_time=time()
 	printh("--init--")
 	init_guns()
+	init_modules()
 	init_enemies()
 	init_boosts()
 	init_locations()
 	reset_sb()
-	equip_simple_chain()
-	equip_double_chain()
-	equip_blink()
-	equip_dev_mode()
+	equip(simple_chain_gun)
+	equip(double_chain_gun)
+	equip(blink_spec)
+	equip(dev_mode_mod)
 	if dev_shortcut then
 		--testing
 		--load_pockets()
@@ -392,9 +414,9 @@ function game_over_mode()
 	if extra_lives<0 then
 		color(7)
 		print("you could not escape this")
-		print("pockets: metal: "..sb_currency)
+		print("pockets: chips: "..sb_currency)
 		y=12
-		y=print_pockets(y)
+		y=print_pocket(y)
 		color(7)
 		stage="l-"
 		if in_reactor then
@@ -436,138 +458,58 @@ function _update()
 	current_mode()
 end
 
-pocket_x={}
-pocket_z={}
-pocket_b={}
-pocket_m={}
-
-inv_x_lines={}
-inv_z_lines={}
-inv_b_lines={}
-inv_m_lines={}
-
+sb_pocket={}
+sb_pocket_max=6
+inv_line=1
 function inv_mode()
 	cls()
-	inv_x_lines={}
-	inv_z_lines={}
-	inv_b_lines={}
-	inv_m_lines={}
 	color(7)
 	print("❎=equip,⬅️=unequip")
-	print("equipped in yellow")
-	print("sizes: "..
-		"x=3, z=2, b=2, m=4")
-	print("➡️ to exit")
+	print("🅾️=trash, ➡️=exit")
+	print("chips: "..sb_currency..
+		", space: "..
+		(sb_pocket_max-#sb_pocket))
 	--offset includes
 	--item icon and arrow
 	x=14
-	y=28
-	for g in all(pocket_x) do
+	y=20
+	lines={}
+	for g in all(sb_pocket) do
 		c=3
-		if g==x_gun.spec then
+		if equipped(g) then
 			c=10
 		end
+		add(lines,{
+			y=y,
+			i=g
+		})
 		print_item(g,x,y,c)
-		add(inv_x_lines,y)
 		y+=10
 	end
-	line(0,y-1,128,y-1,6)
-	y+=1
-	for g in all(pocket_z) do
-		c=3
-		if g==z_gun.spec then
-			c=10
-		end
-		print_item(g,x,y,c)
-		add(inv_y_lines,y)
-		y+=10
-	end
-	if #pocket_z!=0 then
-		line(0,y-1,128,y-1,6)
-		y+=1
-	end
-	for b in all(pocket_b) do
-		c=3
-		if b!=nil and 
-					b==sb_boost.spec then
-			c=10
-		end
-		print_item(b,x,y,c)
-		add(inv_b_lines,y)
-		y+=10
-	end
-	if #pocket_b!=0 then
-		line(0,y-1,128,y-1,6)
-		y+=1
-	end
-	for m in all(pocket_m) do
-		--if b!=nil and 
-		--			b==sb_boost.spec then
-		--end
-		c=3
-		if contains(modules,m) then
-			c=10
-		end
-		print_item(m,x,y,c)
-		add(inv_m_lines,y)
-		y+=8
-	end
-	inv_navigate()
+	inv_navigate(lines)
 end
-
-function print_pockets(y)
-	x=10
-	for i in all(pocket_x) do
-		print_item(i,x,y,7)
-		y+=10
-	end
-	for i in all(pocket_z) do
-		print_item(i,x,y,7)
-		y+=10
-	end
-	for i in all(pocket_b) do
-		print_item(i,x,y,7)
-		y+=10
-	end
-	for i in all(pocket_m) do
-		print_item(i,x,y,7)
-		y+=10
-	end
-	return y
-end
-
-function print_item(g,x,y,c)
-		print(g.desc,x,y+2,c)
-	 --color(3)
-		--
-		spr(g.lbl, x-10,y)
-		y+=8
-end
-
 --1=x,2=z,3=b,4=m
 inv_line_pocket=1
 inv_line=1
 inv_pressed=false
 
-function inv_navigate()
+function inv_navigate(lines)
 	if btn()==0 then
 		human_reset=true
 	end
 	if not human_reset then
 		return
 	end
-	inv_lines=choose_lines()
-	spr(49,0,
-			inv_lines[inv_line])
+	item=lines[inv_line].i
+	--draw pointer
+	spr(49,0,lines[inv_line].y)
 	
 	--down
 	if btn(3) and not inv_pressed
 		then
 		inv_pressed=true
 		inv_line+=1
-		if inv_line>#inv_lines then
-			next_pocket()
-			inv_lines=choose_lines()
+		if inv_line>#lines then
 			inv_line=1
 		end
 	end
@@ -577,17 +519,14 @@ function inv_navigate()
 		inv_pressed=true
 		inv_line-=1
 		if inv_line<1 then
-			prev_pocket()
-			inv_lines=choose_lines()
-			inv_line=#inv_lines
+			inv_line=#lines
 		end
 	end
 	--equip
 	if btn(5) and not inv_pressed
 		then
 		inv_pressed=true
-		p=choose_pocket()
-		equip_from_pocket(p,inv_line)
+		equip(item)
 	end
 	--exit
 	if btn(1) and not inv_pressed
@@ -600,133 +539,104 @@ function inv_navigate()
 	if btn(0) and not inv_pressed
 		then
 		inv_pressed=true
-		p=choose_pocket()
-		printh("pocket size:"..#p)
-		printh(inv_line_pocket)
-		if #p>0 then
-			unequip_from_lines(inv_line)
-		end
+		unequip_item(item)
 	end
 	--dismantle
  if btn(4) and not inv_pressed
 		then
 		inv_pressed=true
-		p=choose_pocket()
-		if not inv_equipped(p[l]) then
-			printh("trashing: "..l)
-			del(p,p[l])
-		else
-			printh("can't trash cause equipped")
-		end
 	end
 	if btn()==0 then
 		inv_pressed=false
 	end
 end
 
-function inv_equipped(v)
-	if inv_line_pocket==1 then
-		--can't unequip x_gun
-		return x_gun.spec==v
-	elseif inv_line_pocket==2 then
-		return z_gun.spec==v
-	elseif inv_line_pocket==3 then
-	 return sb_boost.spec==v
-	elseif inv_line_pocket==4 then
-		return contains(modules,v)
+function pickup_item(a)
+	if not 
+			contains(sb_pocket,a)
+		then
+		add(sb_pocket, a)
+		a.pickup()
+		return a
+	end
+	--if already exists then nil
+	return nil
+end
+
+function drop_item(a)
+	if 
+			contains(pocket,a)
+		then
+		a.drop()
+		del(sb_pocket, a)
+		return a
+	end
+	--if already exists then nil
+	return nil
+end
+
+
+function equipped(g)
+	return (x_gun.spec==g or
+				z_gun.spec==g or
+				sb_boost.spec==g or
+				contains(modules,g))
+end
+
+function equip(g)
+	--pickup if not already in
+	--pocket
+	pickup_item(g)
+	stype=g.stype
+	if stype==item_type.x_gun then
+		x_gun.spec=g
+	elseif stype==item_type.z_gun then
+		z_gun.spec=g
+	elseif stype==item_type.boost then
+		sb_boost.spec=g
+	elseif stype==item_type.module then
+		if not contains(modules,g) then
+			g.do_effect()
+			add(modules,g)
+		else
+			return
+		end
 	end
 end
 
-function unequip_from_lines(l)
-	if inv_line_pocket==1 then
-		--can't unequip x_gun
-		--x_gun.spec=p[l]
-	elseif inv_line_pocket==2 then
+function unequip_item(g)
+	stype=g.stype
+	if stype==item_type.x_gun then
+		--does nothing, can't unequip
+		--x_gun
+	elseif stype==item_type.z_gun then
 		z_gun.spec=nil
-	elseif inv_line_pocket==3 then
-	 sb_boost.spec=nil
-	elseif inv_line_pocket==4 then
-		
-		if #modules>0 then
-			--todo
-			printh(l)
-			m=modules[l]
-			printh(m)
-			printh(#modules)
-			m.undo_effect()
-			del(modules,m)
+	elseif stype==item_type.boost then
+		sb_boost.spec=nil
+	elseif stype==item_type.module then
+		if contains(modules,g) then
+			g.undo_effect(g)
+			del(modules,g)
 		end
 	end
 end
 
-function choose_lines()
-	if inv_line_pocket==1 then
-		return inv_x_lines
-	elseif inv_line_pocket==2 then
-		return inv_z_lines
-	elseif inv_line_pocket==3 then
-	 return inv_b_lines
-	elseif inv_line_pocket==4 then
-		return inv_m_lines
+function print_pocket(y)
+	x=10
+	for i in all(sb_pocket) do
+		print_item(i,x,y,7)
+		y+=10
 	end
-	assert(false, "shouldn't get here")
-end
-function choose_pocket()
-	if inv_line_pocket==1 then
-		return pocket_x
-	elseif inv_line_pocket==2 then
-		return pocket_z
-	elseif inv_line_pocket==3 then
-	 return pocket_b
-	elseif inv_line_pocket==4 then
-		return pocket_m
-	end
-	assert(false, "shouldn't get here")
-end
-function equip_from_pocket(p,l)
-	if inv_line_pocket==1 then
-		x_gun.spec=p[l]
-	elseif inv_line_pocket==2 then
-		z_gun.spec=p[l]
-	elseif inv_line_pocket==3 then
-	 sb_boost.spec=p[l]
-	elseif inv_line_pocket==4 then
-		exists=false
-		for m in all(modules) do
-			if m==p[l] then
-				printh("already equipped")
-				exists=true
-			end
-		end
-		if not exists then
-			p[l].do_effect()
-			add(modules,p[l])
-		end
-	end	
-end
-function next_pocket()
-	inv_line_pocket+=1
-	if inv_line_pocket>4 then
-		--wrap around
-		inv_line_pocket=1
-	end
-	res=choose_lines()
-	if #res==0 then
-		next_pocket()
-	end
+	return y
 end
 
-function prev_pocket()
-	inv_line_pocket-=1
-	if inv_line_pocket<1 then
-		--wrap around
-		inv_line_pocket=4
-	end
-	res=choose_lines()
-	if #res==0 then
-		prev_pocket()
-	end
+function print_item(g,x,y,c)
+		print(g.desc,x,y+2,c)
+		spr(g.lbl, x-10,y)
+		y+=8
 end
+
+
 -->8
 --hud
 
@@ -1027,30 +937,6 @@ function x_fire_rate()
 	return x_gun.r==0
 end
 
-function equip_simple_chain()
-	x_gun.spec=simple_chain_gun
-	add_x_gun(x_gun.spec)
-end
-function equip_double_chain()
-	x_gun.spec=double_chain_gun
-	add_x_gun(x_gun.spec)
-end
-
-
-function equip_blink()
-	sb_boost={
-		spec=blink_spec,
-		--when r is 0 a charge
-		--is added (if not full)
-		r=0,
-		--count for charge purpose
-		c=0,
-		frame_count=0,
-		cooldown=0,
-	}
-	add_boost(sb_boost.spec)
-	return sb_boost
-end
 		
 --deletes all enemy bullets
 function blink_boost(b)
