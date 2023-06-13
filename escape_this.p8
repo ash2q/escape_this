@@ -17,6 +17,15 @@ midline=60
 r_border=120
 l_border=4
 
+function contains(t,v)
+	for i in all(t) do
+		if i==v then
+			return true
+		end
+	end
+	return false
+end
+
 
 enemies={}
 current_mode=nil
@@ -50,12 +59,21 @@ end
 --upgrades
 modules={}
 
+function do_dev_mode()
+	printh("equipped dev mode")
+end
+function undo_dev_mode()
+	printh("unequipped dev mode")
+end
 
 function equip_dev_mode()
 	m={
 		desc="dev mode",
-		lbl=52
+		lbl=52,
+		do_effect=do_dev_mode,
+		undo_effect=undo_dev_mode
 	}
+	m.do_effect()
 	add(modules,m)
 	add(pocket_m,m)
 end
@@ -205,20 +223,21 @@ function reset_stage()
 end
 
 --to skip navigating in the map
---dev_shortcut = false
-dev_shortcut = true
+dev_shortcut = false
+--dev_shortcut = true
 
 function _init()
+	printh("--init--")
 	init_guns()
 	init_enemies()
 	init_boosts()
 	reset_sb()
+	equip_simple_chain()
+	equip_double_chain()
+	equip_blink()
+	equip_dev_mode()
 	if dev_shortcut then
 		--testing
-		equip_simple_chain()
-		equip_double_chain()
-		equip_blink()
-		equip_dev_mode()
 		--load_pockets()
 		current_mode=inv_mode
 		--current_mode=stage_mode
@@ -231,10 +250,20 @@ end
 
 prompt_msg=""
 prompt_loc=nil
+--the human must take their
+--fingers off the keys
+human_reset=false
 function prompt_mode()
+	if btn()==0 then
+	 human_reset=true
+	end
 	cls()
 	color(7)
 	print(prompt_msg)
+	if not human_reset then
+		in_prompt=true
+	 return
+	end
 	bx=5 --❎
 	b=btn()
 	if b>0 then
@@ -263,6 +292,7 @@ function map_mode()
 	check_player_choice()
 	if in_prompt then
 		prompt_mode()
+		human_reset=false
 	end
 end
 
@@ -316,7 +346,13 @@ function stage_mode()
 		extra_lives-=1
 		current_mode=game_over_mode
 	end
-
+	if #enemies==0 then
+		prompt_msg=
+		"stage complete!\n"..
+		"❎ to continue, 🅾️ to return to map"
+		current_mode=prompt_mode
+		human_reset=false
+	end
 end
 
 function game_over_mode()
@@ -367,9 +403,9 @@ function inv_mode()
 	inv_b_lines={}
 	inv_m_lines={}
 	color(7)
-	print("❎=equip,🅾️=exit,⬅️=trash")
+	print("❎=equip,⬅️=unequip")
 	print("equipped in yellow")
-	print("pockets:")
+	print("➡️ to exit")
 	--offset includes
 	--item icon and arrow
 	x=14
@@ -419,13 +455,18 @@ function inv_mode()
 		--if b!=nil and 
 		--			b==sb_boost.spec then
 		--end
-		c=10
+		c=3
+		if contains(modules,m) then
+			c=10
+		end
 		print_item(m,x,y,c)
 		add(inv_m_lines,y)
 		y+=8
 	end
 	inv_navigate()
 end
+
+
 
 function print_item(g,x,y,col)
 		print(g.desc,x,y+2,c)
@@ -441,7 +482,7 @@ inv_line=1
 inv_pressed=false
 
 function inv_navigate()
-	inv_lines=choose_pocket()
+	inv_lines=choose_lines()
 	spr(49,0,
 			inv_lines[inv_line])
 	
@@ -452,7 +493,7 @@ function inv_navigate()
 		inv_line+=1
 		if inv_line>#inv_lines then
 			next_pocket()
-			inv_lines=choose_pocket()
+			inv_lines=choose_lines()
 			inv_line=1
 		end
 	end
@@ -463,16 +504,90 @@ function inv_navigate()
 		inv_line-=1
 		if inv_line<1 then
 			prev_pocket()
-			inv_lines=choose_pocket()
+			inv_lines=choose_lines()
 			inv_line=#inv_lines
 		end
 	end
+	--equip
+	if btn(5) and not inv_pressed
+		then
+		inv_pressed=true
+		p=choose_pocket()
+		equip_from_pocket(p,inv_line)
+	end
+	--exit
+	if btn(1) and not inv_pressed
+		then
+		--is this a valid assumption?
+		current_mode=map_mode
+		in_prompt=false
+	end
+	--unequip
+	if btn(0) and not inv_pressed
+		then
+		inv_pressed=true
+		p=choose_pocket()
+		printh("pocket size:"..#p)
+		printh(inv_line_pocket)
+		if #p>0 then
+			unequip_from_lines(inv_line)
+		end
+	end
+	--trash
+	--this is broken, 
+	--maybe trash isn't needed?
+	--if btn(4) and not inv_pressed
+	--	then
+	--	inv_pressed=true
+	--	p=choose_pocket()
+	--	if not inv_equipped(p[l]) then
+	--		printh("trashing: "..l)
+	--		del(p,p[l])
+	--	else
+	--		printh("can't trash cause equipped")
+	--	end
+	--end
 	if btn()==0 then
 		inv_pressed=false
 	end
 end
 
-function choose_pocket()
+function inv_equipped(v)
+	if inv_line_pocket==1 then
+		--can't unequip x_gun
+		return x_gun.spec==v
+	elseif inv_line_pocket==2 then
+		return z_gun.spec==v
+	elseif inv_line_pocket==3 then
+	 return sb_boost.spec==v
+	elseif inv_line_pocket==4 then
+		return contains(modules,v)
+	end
+end
+
+function unequip_from_lines(l)
+	if inv_line_pocket==1 then
+		--can't unequip x_gun
+		--x_gun.spec=p[l]
+	elseif inv_line_pocket==2 then
+		z_gun.spec=nil
+	elseif inv_line_pocket==3 then
+	 sb_boost.spec=nil
+	elseif inv_line_pocket==4 then
+		
+		if #modules>0 then
+			--todo
+			printh(l)
+			m=modules[l]
+			printh(m)
+			printh(#modules)
+			m.undo_effect()
+			del(modules,m)
+		end
+	end
+end
+
+function choose_lines()
 	if inv_line_pocket==1 then
 		return inv_x_lines
 	elseif inv_line_pocket==2 then
@@ -484,13 +599,46 @@ function choose_pocket()
 	end
 	assert(false, "shouldn't get here")
 end
+function choose_pocket()
+	if inv_line_pocket==1 then
+		return pocket_x
+	elseif inv_line_pocket==2 then
+		return pocket_z
+	elseif inv_line_pocket==3 then
+	 return pocket_b
+	elseif inv_line_pocket==4 then
+		return pocket_m
+	end
+	assert(false, "shouldn't get here")
+end
+function equip_from_pocket(p,l)
+	if inv_line_pocket==1 then
+		x_gun.spec=p[l]
+	elseif inv_line_pocket==2 then
+		z_gun.spec=p[l]
+	elseif inv_line_pocket==3 then
+	 sb_boost.spec=p[l]
+	elseif inv_line_pocket==4 then
+		exists=false
+		for m in all(modules) do
+			if m==p[l] then
+				printh("already equipped")
+				exists=true
+			end
+		end
+		if not exists then
+			p[l].do_effect()
+			add(modules,p[l])
+		end
+	end	
+end
 function next_pocket()
 	inv_line_pocket+=1
 	if inv_line_pocket>4 then
 		--wrap around
 		inv_line_pocket=1
 	end
-	res=choose_pocket()
+	res=choose_lines()
 	if #res==0 then
 		next_pocket()
 	end
@@ -502,7 +650,7 @@ function prev_pocket()
 		--wrap around
 		inv_line_pocket=4
 	end
-	res=choose_pocket()
+	res=choose_lines()
 	if #res==0 then
 		prev_pocket()
 	end
@@ -634,7 +782,7 @@ end
 function draw_boost_hud()
 	palt(0, false)
 	boost=nil
-	if sb_boost==nil then
+	if sb_boost.spec==nil then
 	--empty label
 		spr(31,60,0)
 		palt(0,true)
@@ -752,13 +900,17 @@ function boost_control()
 		return
 	end
 	if btn(5) and btn(4) then
-		if sb_boost_charges>0 then
-			--use boost immediately
-			sb_boost_charges-=1
-			sb_boost.cooldown=
-					sb_boost.spec.cooldown
-			sb_boost.spec.activate_fn(
-					sb_boost)
+		if sb_boost.spec!=nil then
+			if sb_boost_charges>0 then
+				--use boost immediately
+				sb_boost_charges-=1
+				sb_boost.cooldown=
+						sb_boost.spec.cooldown
+				sb_boost.spec.activate_fn(
+						sb_boost)
+				end
+			else
+				sb_boost_charges=0
 			end
 	end
 end
@@ -814,7 +966,7 @@ function blink_update(b)
 end
 
 function boost_update()
-	if sb_boost==nil then
+	if sb_boost.spec==nil then
 		return
 	end
 	sb_boost.spec.update_fn(
@@ -879,7 +1031,7 @@ function draw_map()
 end
 
 function draw_boosts()
-	if sb_boost==nil then
+	if sb_boost.spec==nil then
 		return
 	end
 	sb_boost.spec.draw_fn(sb_boost)
@@ -1216,12 +1368,24 @@ end
 locations={}
 
 reactor_loc={
-	sprite=64,
 	launches=reactor,
 	mode=stage_mode,
 	msg=
 		"enter reactor? (❎ for yes)"
 }
+
+function home()
+	prev_mode=map_mode
+end
+
+home_loc={
+	launches=home,
+	mode=inv_mode,
+	msg=
+		"enter home? (❎ for yes)"
+}
+
+
 
 function add_map_loc(x,y,loc)
 	add(locations,{
@@ -1234,7 +1398,8 @@ end
 function build_map()
 	add_map_loc(12*8,3*8,
 		reactor_loc)
-	
+	add_map_loc(4*8,7*8,
+		home_loc)
 end
 
 function check_col(x1,y1,w1,h1,
