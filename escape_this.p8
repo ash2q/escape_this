@@ -125,7 +125,7 @@ function init_guns()
 		charge=0,
 		--each projectile increases
 		--sb_heat by this amount
-		heat_rate=5.0,
+		heat_rate=8.0,
 		cool_rate=1.0,
 		dmg=4,
 		rate=3,
@@ -202,7 +202,7 @@ sb_boost_max_charges=2
 sb_boost_charges=1
 sb_boost=nil
 
-extra_lives=0
+extra_lives=1
 
 current_stage=nil
 
@@ -210,14 +210,20 @@ function reset_sb()
 	sb_x=64.0
 	sb_y=70.0
 	sb_health=sb_max_health
+	sb_heat=0.0
+	sb_heated=false
+	x_gun.heat=0
+	z_gun.heat=0
+	sb_boost_charges=
+			sb_boost_max_charges
 	--sb_heat=200.0 --testing
+	enemies={}
+	bullets={}
+	explosions={}
 end
 
 function reset_stage()
 	reset_sb()
-	enemies={}
-	bullets={}
-	explosions={}
 	current_mode=stage_mode
  current_stage()
 end
@@ -231,6 +237,7 @@ function _init()
 	init_guns()
 	init_enemies()
 	init_boosts()
+	init_locations()
 	reset_sb()
 	equip_simple_chain()
 	equip_double_chain()
@@ -266,29 +273,20 @@ function prompt_mode()
 	 return
 	end
 	bx=5 --❎
-	b=btn()
-	if b>0 then
-		if b&0x20>0 then
-		 printh("confirm")
-			prompt_confirm()
-			--current_mode=
-			--		prompt_loc.mode
-		end
-		if b&0x10>0 then
-			if prompt_cancel!=nil then
-				prompt_cancel()
-			end
-		end
-	else
-
+	if btn(5) then
+		prompt_confirm()
+	elseif btn(4) then
+		--if prompt_cancel!=nil then
+		prompt_cancel()
+		--end
 	end
 end
 
 function goto_prompt(confirm,cancel)
 	prompt_confirm=confirm
 	prompt_cancel=cancel
-	current_mode=prompt_mode
 	prev_mode=current_mode
+	current_mode=prompt_mode
 	human_reset=false
 end
 
@@ -355,35 +353,41 @@ function stage_mode()
 	end
 	if sb_health<=0 then
 		extra_lives-=1
+		human_reset=false
 		current_mode=game_over_mode
 	end
 	if #enemies==0 then
 		prompt_msg=
 		"stage complete!\n"..
-		"❎ to continue, 🅾️ to return to map"
+		"❎ to continue\n"..
+		"🅾️ to return to map"
 		goto_prompt(stage_continue,
-			back_to_map)
+			stage_exit)
 		current_mode=prompt_mode
 		human_reset=false
 	end
 end
 
 function game_over_mode()
+	if btn()==0 then
+		human_reset=true
+	end
 	cls()
 	if extra_lives<0 then
 		print("it seems as though you")
 		print("could not escape this")
-		print("reboot(🅾️)")
-		if btn(4) then
+		print("❎ to reboot")
+		if btn(5) and human_reset then
 			extcmd("reset")
 			stop()
 		end
 	else
 		print("it seems as though you")
 		print("have another chance")
-		print("lives: "..extra_lives)
-		print("try again(🅾️)")
-		if btn(4) then
+		print("extra lives: "..
+				extra_lives)
+		print("❎ to try again")
+		if btn(5) and human_reset then
 			reset_stage()
 		end
 	end
@@ -409,7 +413,6 @@ inv_b_lines={}
 inv_m_lines={}
 
 function inv_mode()
-	printh("inv")
 	cls()
 	inv_x_lines={}
 	inv_z_lines={}
@@ -435,9 +438,6 @@ function inv_mode()
 	line(0,y-1,128,y-1,6)
 	y+=1
 	for g in all(pocket_z) do
-		if g.spec==nil then
-			break
-		end
 		c=3
 		if g==z_gun.spec then
 			c=10
@@ -495,6 +495,12 @@ inv_line=1
 inv_pressed=false
 
 function inv_navigate()
+	if btn()==0 then
+		human_reset=true
+	end
+	if not human_reset then
+		return
+	end
 	inv_lines=choose_lines()
 	spr(49,0,
 			inv_lines[inv_line])
@@ -685,7 +691,7 @@ function draw_hud()
 	spr(12,83,0)
 	health_meter(91,1,sb_health)
 	
-	print("x"..extra_lives,106,2,7)
+	print("x"..extra_lives,105,2,7)
 	draw_boost_hud()
 	rectfill(115,1,126,6,8)
 	if in_reactor then
@@ -1364,15 +1370,21 @@ end
 function stage_1()
 	add_spitter(10,30)
 	add_spitter(80,30)
-	
-
+end
+function stage_2()
+	add_spitter(10,30)
+	add_spitter(80,30)
+	add_spitter(40,30)
 end
 
+in_reactor=false
 reactor_depth=1
+
 reactor_stages={
-	stage_1
+	stage_1,stage_2
 }
-function reactor()
+
+function enter_reactor()
 	in_reactor=true
 	reset_sb()
 	current_mode=stage_mode
@@ -1389,27 +1401,32 @@ function reactor()
 end
 
 locations={}
+reactor_loc=nil
+home_loc=nil
 
-reactor_loc={
-	launches=reactor,
-	mode=stage_mode,
-	msg=
-		"enter reactor? (❎ for yes)"
-}
 
-function home()
-	reset_sb()
-	prev_mode=map_mode
-	printh("home")
-	current_mdde=inv_mode
+function init_locations()
+	reactor_loc={
+		launches=enter_reactor,
+		cancel=stage_cancel,
+		msg=
+			"enter reactor? (❎ for yes)"
+	}
+	home_loc={
+		launches=enter_home,
+		cancel=back_to_map,
+		msg=
+			"enter home? (❎ for yes)"
+	}
 end
 
-home_loc={
-	launches=home,
-	mode=inv_mode,
-	msg=
-		"enter home? (❎ for yes)"
-}
+function enter_home()
+	reset_sb()
+	human_reset=false
+	current_mode=inv_mode
+end
+
+
 
 
 
@@ -1465,7 +1482,8 @@ function check_player_choice()
 			--player chose
 			prompt_msg=l.loc.msg
 			goto_prompt(l.loc.launches,
-					back_to_map)
+					l.loc.cancel)
+			
 			return
 		end
 	end
@@ -1474,15 +1492,31 @@ end
 function back_to_map()
 	reset_sb()
 	current_mode=map_mode
+	printh("back_to_map")
 end
 
-in_reactor=false
-function stage_continue()
+
+function continue_stage()
 	if in_reactor then
 		reactor_depth+=1
+		reset_stage()
+		enter_reactor()
 	else
 		--todo
 	end
+end
+function stage_exit()
+	if in_reactor then
+		reactor_depth+=1
+		back_to_map()
+	else
+	--todo
+		lab_depth+=1
+		back_to_map()
+	end
+end
+function stage_cancel()
+	back_to_map()
 end
 __gfx__
 0007700000000000000000000000000000000000000000000cccccc0000009000090000090077009555555555555555555555555006666000066660000555500
