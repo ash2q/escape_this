@@ -248,8 +248,10 @@ function _init()
 	end
 end
 
+
 prompt_msg=""
-prompt_loc=nil
+prompt_confirm=nil
+prompt_cancel=nil
 --the human must take their
 --fingers off the keys
 human_reset=false
@@ -261,25 +263,33 @@ function prompt_mode()
 	color(7)
 	print(prompt_msg)
 	if not human_reset then
-		in_prompt=true
 	 return
 	end
 	bx=5 --❎
 	b=btn()
 	if b>0 then
 		if b&0x20>0 then
-			prompt_status=0 --confirm
-			prompt_loc.launches()
-			current_mode=
-					prompt_loc.mode
+		 printh("confirm")
+			prompt_confirm()
+			--current_mode=
+			--		prompt_loc.mode
 		end
 		if b&0x10>0 then
-			in_prompt=false
-			prompt_status=1 --return
+			if prompt_cancel!=nil then
+				prompt_cancel()
+			end
 		end
 	else
-		in_prompt=true --wait
+
 	end
+end
+
+function goto_prompt(confirm,cancel)
+	prompt_confirm=confirm
+	prompt_cancel=cancel
+	current_mode=prompt_mode
+	prev_mode=current_mode
+	human_reset=false
 end
 
 function map_mode()
@@ -290,11 +300,12 @@ function map_mode()
 	draw_map()
 	draw_player()
 	check_player_choice()
-	if in_prompt then
-		prompt_mode()
-		human_reset=false
-	end
+	--if in_prompt then
+	--	prompt_mode()
+		--human_reset=false
+	--end
 end
+
 
 function stage_mode()
 	cls()
@@ -350,6 +361,8 @@ function stage_mode()
 		prompt_msg=
 		"stage complete!\n"..
 		"❎ to continue, 🅾️ to return to map"
+		goto_prompt(stage_continue,
+			back_to_map)
 		current_mode=prompt_mode
 		human_reset=false
 	end
@@ -362,7 +375,6 @@ function game_over_mode()
 		print("could not escape this")
 		print("reboot(🅾️)")
 		if btn(4) then
-
 			extcmd("reset")
 			stop()
 		end
@@ -397,6 +409,7 @@ inv_b_lines={}
 inv_m_lines={}
 
 function inv_mode()
+	printh("inv")
 	cls()
 	inv_x_lines={}
 	inv_z_lines={}
@@ -674,6 +687,13 @@ function draw_hud()
 	
 	print("x"..extra_lives,106,2,7)
 	draw_boost_hud()
+	rectfill(115,1,126,6,8)
+	if in_reactor then
+		print("r-"..reactor_depth,
+				116,2,7)
+	else
+	 --todo when lab
+	end
 end
 
 function draw_gun_hud(offset,gun)
@@ -1353,6 +1373,9 @@ reactor_stages={
 	stage_1
 }
 function reactor()
+	in_reactor=true
+	reset_sb()
+	current_mode=stage_mode
 	if 
 		reactor_depth>#reactor_stages
 		then
@@ -1375,7 +1398,10 @@ reactor_loc={
 }
 
 function home()
+	reset_sb()
 	prev_mode=map_mode
+	printh("home")
+	current_mdde=inv_mode
 end
 
 home_loc={
@@ -1437,21 +1463,27 @@ function check_player_choice()
 							16,
 							16) then
 			--player chose
-			prompt(l.loc)
-			
+			prompt_msg=l.loc.msg
+			goto_prompt(l.loc.launches,
+					back_to_map)
+			return
 		end
 	end
 end
 
-function prompt(l)
-	prompt_status=3 --waiting
-	prompt_msg=l.msg
-	in_prompt=true
-	prompt_loc=l
+function back_to_map()
 	reset_sb()
-	
+	current_mode=map_mode
 end
 
+in_reactor=false
+function stage_continue()
+	if in_reactor then
+		reactor_depth+=1
+	else
+		--todo
+	end
+end
 __gfx__
 0007700000000000000000000000000000000000000000000cccccc0000009000090000090077009555555555555555555555555006666000066660000555500
 00077000006c060000000500005000000060c600006006000a6cc6a0000005000050000080077008500000055606606550000005006006000696696005755750
