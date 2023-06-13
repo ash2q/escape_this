@@ -62,6 +62,7 @@ modules={}
 
 function do_dev_mode()
 	printh("equipped dev mode")
+	sb_currency+=100
 end
 function undo_dev_mode()
 	printh("unequipped dev mode")
@@ -829,10 +830,11 @@ function draw_boost_hud()
 	end
 	boost=sb_boost
 	spr(boost.spec.lbl,offset,0)
-	for i=1,sb_boost_max_charges do
+	for i=1,sb_boost_max_charges
+	 do
 		x=(offset+8)+(i-1)*3
 		y=3
-		if sb_boost_charges>i-1 then
+		if sb_boost_charges>=i then
 			rectfill(x,y,x+1,y+2,7)
 		else
 			rectfill(x,y,x+1,y+2,0)
@@ -942,6 +944,9 @@ function boost_control()
 		(sb_expert_mod or not
 		 sb_heated)
 	then
+		--reset timer on next boost
+		sb_boost.r=
+			sb_boost.spec.regen_rate
 		if sb_boost.spec!=nil then
 			if sb_boost_charges>0 then
 				--use boost immediately
@@ -1068,7 +1073,8 @@ function draw_enemies()
 	for e in all(enemies) do
 		tmp=acnt%#e.spec.anim
 		spr(e.spec.anim[1+tmp],
-			e.x-4, e.y-4)
+			e.x-4, e.y-4,1,1,
+			e.flip_x,e.flip_y)
 	end
 end
 
@@ -1327,19 +1333,53 @@ end
 --of the player sprite
 
 e_spec_spitter=nil
+e_spec_flier=nil
+e_spec_wall=nil
 
 function init_enemies()
 	e_spec_spitter={
 		anim={16,17,18,19},
-		--speed of shooting bullets
-		speed=1.0,
+		speed=0,
+		blt_speed=0.8,
 		gun=chain_gun,
 		trace=trace_still,
 		update=spitter_update,
 		health=50,
 		rate=40,
 		dmg=30,
-		reward=2
+		reward=2,
+		flip_dir_h=false,
+		flip_dir_v=false
+	}
+	e_spec_wall={
+		anim={59},
+		speed=0,
+		blt_speed=0,
+		gun=chain_gun,
+		trace=trace_still,
+		update=trace_still,
+		health=50,
+		rate=40,
+		dmg=30,
+		reward=1,
+		flip_dir_h=false,
+		flip_dir_v=false
+	}
+	e_spec_flier={
+		anim={55,56,57,58},
+		speed=0.5,
+		blt_speed=0.6,
+		gun=chain_gun,
+		trace=trace_slide,
+		update=flier_update,
+		health=50,
+		rate=40,
+		dmg=30,
+		reward=2,
+		--flip sprite when moving 
+		--opposite direction
+		flip_dir_h=true,
+		flip_dir_v=false
 	}
 end
 
@@ -1355,8 +1395,24 @@ function clean_enemies()
 	end
 end
 
-function add_spitter(x,y)
-	spitter={
+function spawn_wall(x,y)
+	e={
+		x=x,
+		y=y,
+		rate_mul=1.0,
+		dmg_mul=1.0,
+		reward=e_spec_wall.reward,
+		health=e_spec_wall.health,
+		spec=e_spec_wall,
+		flip_x=false,
+		flip_y=false
+	}
+	add(enemies,e)
+	return e
+end
+
+function spawn_spitter(x,y)
+	e={
 		x=x,
 		y=y,
 		rate_mul=1.0,
@@ -1364,9 +1420,28 @@ function add_spitter(x,y)
 		reward=e_spec_spitter.reward,
 		health=e_spec_spitter.health,
 		spec=e_spec_spitter,
+		flip_x=true,
+		flip_y=false
 	}
-	add(enemies,spitter)
-	return spitter
+	add(enemies,e)
+	return e
+end
+
+function spawn_flier(x,y)
+	e={
+		x=x,
+		y=y,
+		rate_mul=1.0,
+		dmg_mul=1.0,
+		reward=e_spec_flier.reward,
+		health=e_spec_flier.health,
+		spec=e_spec_flier,
+		flip_x=true,
+		flip_y=false,
+		moved=false
+	}
+	add(enemies,e)
+	return e
 end
 
 function enemy_control()
@@ -1380,6 +1455,34 @@ end
 --patterns
 function trace_still(e)
 	--do nothing
+end
+
+--moves back and forth
+--along x axis
+--turns around if obstacle
+--or border
+function trace_slide(e)
+	xold=e.x
+	if e.flip_x then
+		e.x+=e.spec.speed
+	else
+		e.x-=e.spec.speed
+	end
+	--check collisions
+	--turn around if hit something
+	for en in all(enemies) do
+		if en!=e then
+			if check_col(
+					e.x,e.y,8,8,
+					en.x,en.y,8,8)
+					or e.x<=3
+					or e.x>=125
+				then
+				e.x=xold
+				e.flip_x=not e.flip_x
+			end
+		end
+	end
 end
 
 function spitter_update(e)
@@ -1396,9 +1499,26 @@ function spitter_update(e)
 	blt=blt_line(e.x,e.y+4,
 			e.spec.dmg*e.dmg_mul)
 	blt.friendly=false
-	blt.speed=0.8
+	blt.speed=e.spec.blt_speed
 	add(bullets,blt)
-	
+end
+
+function flier_update(e)
+	if e.r==nil then
+		e.r=0
+	end
+	if e.r<e.spec.rate*e.rate_mul
+	 then
+		e.r+=1
+		return
+	end
+	e.r=0
+	--fire bullet
+	blt=blt_line(e.x,e.y+4,
+			e.spec.dmg*e.dmg_mul)
+	blt.friendly=false
+	blt.speed=e.spec.blt_speed
+	add(bullets,blt)
 end
 
 -->8
@@ -1412,13 +1532,15 @@ end
 
 
 function stage_1()
-	add_spitter(10,30)
-	add_spitter(80,30)
+	spawn_spitter(10,30)
+	spawn_spitter(80,40)
+	spawn_wall(30,15)
+	spawn_flier(5,15)
 end
 function stage_2()
-	add_spitter(10,30).reward+=1
-	add_spitter(80,30).reward+=1
-	add_spitter(40,30).reward+=1
+	spawn_spitter(10,30).reward+=1
+	spawn_spitter(80,30).reward+=1
+	spawn_spitter(40,30).reward+=1
 end
 
 in_reactor=false
@@ -1587,14 +1709,14 @@ __gfx__
 0ffffff00ffffffffffffffffffffff0000000000058850005899850089aa98000588500000550000005500000099000008998000055550050c11c0550800805
 ff0000ffff00000ff000000ff00000ff00000000000550000058850000899800000550000000000000000000000000000008800000055000500cc00550888805
 f000000ff0000000000000000000000f000000000000000000055000000880000000000000000000000000000000000000000000000000005555555555555555
-55555555000000005555555555555555555555555555555500000000000000000000000000000000000000000000000000000000000000000000000000000000
-5006600500000000500bb00550099005500220055000500505555500000000000000000000000000000000000000000000000000000000000000000000000000
-5667766570000000500bb00550099005500220055066600505555500000000000000000000000000000000000000000000000000000000000000000000000000
-56788765770000005bbbbbb559999995522222255065000505555500000000000000000000000000000000000000000000000000000000000000000000000000
-56708765777000005bbbbbb55999999552222225500050050a0a0a00000000000000000000000000000000000000000000000000000000000000000000000000
-5667766577000000500bb0055009900550022005506660050a0a0a00000000000000000000000000000000000000000000000000000000000000000000000000
-5006600570000000500bb00550099005500220055065000500000000000000000000000000000000000000000000000000000000000000000000000000000000
-55555555000000005555555555555555555555555555555500000000000000000000000000000000000000000000000000000000000000000000000000000000
+55555555000000005555555555555555555555555555555500000000000066600000666000006660000066606666666600000000000000000000000000000000
+5006600500000000500bb00550099005500220055000500505555500000655600006556900065568000655606555555600000000000000000000000000000000
+5667766570000000500bb00550099005500220055066600505555500006555600065556900655568006555686500005600000000000000000000000000000000
+56788765770000005bbbbbb559999995522222255065000505555500065599600655996006559960065599606500005600000000000000000000000000000000
+56708765777000005bbbbbb55999999552222225500050050a0a0a00065599600655996006559960065599606500005600000000000000000000000000000000
+5667766577000000500bb0055009900550022005506660050a0a0a00006555600065556900655568006555686500005600000000000000000000000000000000
+5006600570000000500bb00550099005500220055065000500000000000655600006556900065568000655606555555600000000000000000000000000000000
+55555555000000005555555555555555555555555555555500000000000066600000666000006660000066606666666600000000000000000000000000000000
 55585055050505555777777777777775033333333333333055555555555555555555555555555555555555555555550500000000000000000000000000000000
 5650a55898955565577cccccc666666503ccccccccc3333077777777777777775555556555555555556555555555555500000000000000000000000000000000
 5659500550a58065577cccccc6555555039cc8ccaac3333077777777777777775555666655555555555545554555605500000000000000000000000000000000
