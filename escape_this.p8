@@ -48,6 +48,7 @@ function init_boosts()
 		--time before can activate 
 		--again
 		cooldown=20,
+		heat=30,
 		desc="bullet blink"
 	}
 		
@@ -201,6 +202,10 @@ sb_boost_timer=60
 sb_boost_max_charges=2
 sb_boost_charges=1
 sb_boost=nil
+sb_boost_heat_mul=1.0
+sb_currency=0
+--mod globals
+sb_expert_mod=false
 
 extra_lives=1
 
@@ -361,7 +366,7 @@ function stage_mode()
 		"stage complete!\n"..
 		"❎ to continue\n"..
 		"🅾️ to return to map"
-		goto_prompt(stage_continue,
+		goto_prompt(next_stage,
 			stage_exit)
 		current_mode=prompt_mode
 		human_reset=false
@@ -694,6 +699,13 @@ function draw_hud()
 	print("x"..extra_lives,105,2,7)
 	draw_boost_hud()
 	rectfill(115,1,126,6,8)
+	
+	--currency
+	rectfill(60,1,60+20,6,0)
+	spr(54,60,1)
+	print(""..sb_currency,69,2,7)
+	
+	
 	if in_reactor then
 		print("r-"..reactor_depth,
 				116,2,7)
@@ -806,18 +818,19 @@ function heat_meter(x,y,heat,
 end
 
 function draw_boost_hud()
+	offset=40
 	palt(0, false)
 	boost=nil
 	if sb_boost.spec==nil then
 	--empty label
-		spr(31,60,0)
+		spr(31,offset,0)
 		palt(0,true)
 		return
 	end
 	boost=sb_boost
-	spr(boost.spec.lbl,60,0)
+	spr(boost.spec.lbl,offset,0)
 	for i=1,sb_boost_max_charges do
-		x=68+(i-1)*3
+		x=(offset+8)+(i-1)*3
 		y=3
 		if sb_boost_charges>i-1 then
 			rectfill(x,y,x+1,y+2,7)
@@ -925,7 +938,10 @@ function boost_control()
 		sb_boost.cooldown-=1
 		return
 	end
-	if btn(5) and btn(4) then
+	if btn(5) and btn(4) and
+		(sb_expert_mod or not
+		 sb_heated)
+	then
 		if sb_boost.spec!=nil then
 			if sb_boost_charges>0 then
 				--use boost immediately
@@ -934,6 +950,8 @@ function boost_control()
 						sb_boost.spec.cooldown
 				sb_boost.spec.activate_fn(
 						sb_boost)
+				sb_heat+=sb_boost.spec.heat*
+						sb_boost_heat_mul
 				end
 			else
 				sb_boost_charges=0
@@ -948,6 +966,11 @@ function x_fire_rate()
 		x_gun.r=0
 	else
 		x_gun.r+=sb_rate_mod
+	end
+	if not sb_expert_mod then
+		if sb_heated then
+			return false
+		end
 	end
 	return x_gun.r==0
 end
@@ -971,7 +994,7 @@ function equip_blink()
 		--count for charge purpose
 		c=0,
 		frame_count=0,
-		cooldown=0
+		cooldown=0,
 	}
 	add(pocket_b,sb_boost.spec)
 	return sb_boost
@@ -1049,6 +1072,37 @@ function draw_enemies()
 	end
 end
 
+--these are cosmetic only
+--s is background sprite
+function add_big_explosion(s,x,y)
+	e={
+		s=s,
+		x=x,
+		y=y,
+		anim={36,37,38,39,40,41},
+		frame=1
+	}
+	add(explosions,e)
+end
+
+function draw_explosions()
+	for ex in all(explosions) do
+		--bottom layer
+		if ex.s!=nil then
+			spr(ex.s,ex.x,ex.y)
+		end
+		anim=ex.anim
+		if ex.frame<=#anim then
+			spr(anim[ex.frame],
+				ex.x,ex.y)
+		end
+		ex.frame+=1
+		if ex.frame>=#ex.anim then
+			del(explosions,ex)
+		end
+	end
+end
+
 function draw_map()
  map(0,0,0,0,128,128)
 	for l in all(locations) do
@@ -1088,16 +1142,8 @@ function draw_bullets()
 		end
 	end
 end
-function draw_explosions()
-	for ex in all(explosions) do
-		anim=ex.anim
-		if ex.frame<=#anim then
-		spr(anim[ex.frame],
-				ex.x,ex.y)
-		end
-		ex.frame+=1
-	end
-end
+
+
 
 function move_bullets()
 	for b in all(bullets) do
@@ -1118,7 +1164,7 @@ function check_bullet(b)
 					e.x-4,e.y-4)
 			 then
 			 e.health-=b.dmg
-			 explode_hit(b.x,b.y,e)
+			 explode_hit(b.x,b.y)
 			 del(bullets,b)
 			end
 		end
@@ -1147,14 +1193,6 @@ function clean_bullets()
 		if b.x<0 or b.y<0 or
 					b.x>128 or b.y>128 then
 			del(bullets,b)
-		end
-	end
-end
-
-function clean_explosions()
-	for ex in all(explosions) do
-		if ex.frame>=#ex.anim then
-			del(bullets,ex)
 		end
 	end
 end
@@ -1270,11 +1308,11 @@ function step_line(b)
 end
 
 --e is enemy. optional
-function explode_hit(x,y,e)
+function explode_hit(x,y)
 	local ex={}
+	ex.s=nil
 	ex.anim=hit_anim
 	ex.frame=1
-	ex.e = e
 		--centering offset
 	ex.x=x-4
 	ex.y=y-4
@@ -1300,14 +1338,19 @@ function init_enemies()
 		update=spitter_update,
 		health=50,
 		rate=40,
-		dmg=30
+		dmg=30,
+		reward=2
 	}
 end
 
 function clean_enemies()
 	for e in all(enemies) do
 		if e.health<=0 then
+			sb_currency+=e.reward
 			del(enemies,e)
+			add_big_explosion(
+				e.spec.anim[1],
+				e.x-4,e.y-4)
 		end
 	end
 end
@@ -1318,8 +1361,9 @@ function add_spitter(x,y)
 		y=y,
 		rate_mul=1.0,
 		dmg_mul=1.0,
+		reward=e_spec_spitter.reward,
 		health=e_spec_spitter.health,
-		spec=e_spec_spitter
+		spec=e_spec_spitter,
 	}
 	add(enemies,spitter)
 	return spitter
@@ -1372,9 +1416,9 @@ function stage_1()
 	add_spitter(80,30)
 end
 function stage_2()
-	add_spitter(10,30)
-	add_spitter(80,30)
-	add_spitter(40,30)
+	add_spitter(10,30).reward+=1
+	add_spitter(80,30).reward+=1
+	add_spitter(40,30).reward+=1
 end
 
 in_reactor=false
@@ -1496,7 +1540,7 @@ function back_to_map()
 end
 
 
-function continue_stage()
+function next_stage()
 	if in_reactor then
 		reactor_depth+=1
 		reset_stage()
@@ -1535,20 +1579,20 @@ __gfx__
 556666555666666556a66a65556666550ffffff00ffffffffffffffffffffff0009009000090090000900900000000000000000000000000000aa00050000005
 05566550056666500566665005566550ff0000ffff00000ff000000ff00000ff000000000000000000000000000000000009900000a99a0000a99a0050000005
 00566500005665000056650000566500f000000ff0000000000000000000000f0000000000000000000000000000000000099000000990000009900055555555
-00099000000990000009900000099000000000000000000000055000000880000000000000000000000000000000000000000000000000005555555555555555
-0099990000999900009999000099990000000000000550000058850000899800000550000000000000000000000000000008800000055000500cc005500cc005
-09a88a9009a88a9009a88a9009a88a90000000000058850005899850089aa98000588500000550000005500000099000008998000055550050c11c0550c00c05
-09a33a9009a33a9009a33a9009a33a900008800005899850589aa98589a77a98058aa8500058850000599500009aa900089aa980055aa5505c1711c55c6006c5
+00099000000990000009900000099000000000000000000000055000000880000005000000550005000000000000000000000000000000005555555555555555
+0099990000999900009999000099990000000000000550000058850000899800050550505050555000000000000000000008800000055000500cc005500cc005
+09a88a9009a88a9009a88a9009a88a90000000000058850005899850089aa98000588500050550500005500000099000008998000055550050c11c0550c00c05
+09a33a9009a33a9009a33a9009a33a900008800005899850589aa98589a77a98058aa8500058850500599500009aa900089aa980055aa5505c1711c55c6006c5
 09aaaa9009aaaa9009aaaa9009aaaa900008800005899850589aa98589a77a98058aa8500058850000599500009aa900089aa980055aa5505c1111c550800805
 0ffffff00ffffffffffffffffffffff0000000000058850005899850089aa98000588500000550000005500000099000008998000055550050c11c0550800805
 ff0000ffff00000ff000000ff00000ff00000000000550000058850000899800000550000000000000000000000000000008800000055000500cc00550888805
 f000000ff0000000000000000000000f000000000000000000055000000880000000000000000000000000000000000000000000000000005555555555555555
 55555555000000005555555555555555555555555555555500000000000000000000000000000000000000000000000000000000000000000000000000000000
-5006600500000000500bb00550099005500220055000500500000000000000000000000000000000000000000000000000000000000000000000000000000000
-5667766570000000500bb00550099005500220055066600500000000000000000000000000000000000000000000000000000000000000000000000000000000
-56788765770000005bbbbbb559999995522222255065000500000000000000000000000000000000000000000000000000000000000000000000000000000000
-56708765777000005bbbbbb559999995522222255000500500000000000000000000000000000000000000000000000000000000000000000000000000000000
-5667766577000000500bb00550099005500220055066600500000000000000000000000000000000000000000000000000000000000000000000000000000000
+5006600500000000500bb00550099005500220055000500505555500000000000000000000000000000000000000000000000000000000000000000000000000
+5667766570000000500bb00550099005500220055066600505555500000000000000000000000000000000000000000000000000000000000000000000000000
+56788765770000005bbbbbb559999995522222255065000505555500000000000000000000000000000000000000000000000000000000000000000000000000
+56708765777000005bbbbbb55999999552222225500050050a0a0a00000000000000000000000000000000000000000000000000000000000000000000000000
+5667766577000000500bb0055009900550022005506660050a0a0a00000000000000000000000000000000000000000000000000000000000000000000000000
 5006600570000000500bb00550099005500220055065000500000000000000000000000000000000000000000000000000000000000000000000000000000000
 55555555000000005555555555555555555555555555555500000000000000000000000000000000000000000000000000000000000000000000000000000000
 55585055050505555777777777777775033333333333333055555555555555555555555555555555555555555555550500000000000000000000000000000000
