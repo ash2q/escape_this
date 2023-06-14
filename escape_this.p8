@@ -26,6 +26,13 @@ function contains(t,v)
 	end
 	return false
 end
+function sh_copy(t)
+	c={}
+	for k,v in pairs(t) do
+		c[k]=v
+	end
+	return c
+end
 
 item_type={
 	x_gun=1,
@@ -43,13 +50,13 @@ in_prompt=false
 blink_spec={}
 
 common_chip_range=
-		{5,20}
+		{2,10}
 uncommon_chip_range=
-		{10,30}
+		{4,15}
 rare_chip_range=
-		{25,80}
+		{10,30}
 exotic_chip_range=
-		{50,120}
+		{40,80}
 --note: this table is indexed
 --for determining rarity chip
 --rate for dismantling
@@ -173,8 +180,11 @@ empty_gun={}
 beam_gun={}
 simple_chain_gun={}
 double_chain_gun={}
+texas_chain_gun={}
 x_gun={}
 z_gun={}
+
+
 
 function init_guns()
 	beam_gun={
@@ -211,7 +221,28 @@ function init_guns()
 		base_cost=40,
 		rarity=1
 	}
-	double_chain_gun={
+	texas_chain_gun={
+		lbl=60,
+		charge=0,
+		--each projectile increases
+		--sb_heat by this amount
+		heat_rate=30.0,
+		cool_rate=1.0,
+		dmg=20,
+		rate=10,
+		shoot=shoot_big_chain,
+		shoot_heated=shoot_big_heated_chain,
+		name="(x) texas chain gun",
+		desc=
+"a ridiculously large caliber\n"..
+"gun. slow fire rate, big damage.\n",
+		stype=item_type.x_gun,
+		pickup=nop,
+		drop=nop,
+		base_cost=20,
+		rarity=2
+	}
+		double_chain_gun={
 		lbl=53,
 		charge=0,
 		--each projectile increases
@@ -348,12 +379,14 @@ function _init()
 	init_locations()
 	init_shops()
 	init_lab()
+	init_loot_pool()
 	sb_health=sb_max_health
 	reset_sb()
 	equip(simple_chain_gun)
 	equip(double_chain_gun)
 	equip(blink_spec)
 	equip(dev_mode_mod)
+	fill_vending()
 	--make it so beginning equip
 	--sfx do not play
 	sfx(-1)
@@ -471,11 +504,12 @@ function stage_mode()
 		current_mode=game_over_mode
 	end
 	if is_stage_empty() then
+		fill_vending()
 		prompt_msg_fn=function()
 			print("stage "..stage_name..
 			" complete!\n"..
-				"❎ to continue\n"..
-				"🅾️ to return to map")
+"❎ to check loot and continue\n"..
+"🅾️ to return to map")
 			end
 		goto_prompt(next_stage,
 			stage_exit)
@@ -513,12 +547,9 @@ function game_over_mode()
 		y=12
 		y=print_pocket(y)
 		color(7)
-		stage="l-"
-		if in_reactor then
-			stage="r-"..reactor_depth
-		end
+		stage=stage_name
 		total_time=end_time-begin_time
-		print("stage: "..
+		print("last stage: "..
 			stage..
 			", time: "..flr(total_time)..
 			"s",0,y)
@@ -815,20 +846,16 @@ function draw_hud()
 	
 	print("x"..extra_lives,105,2,7)
 	draw_boost_hud()
-	rectfill(115,1,126,6,8)
+	
 	
 	--currency
 	rectfill(60,1,60+20,6,0)
 	spr(54,60,1)
 	print(""..sb_currency,69,2,7)
 	
-	
-	if in_reactor then
-		print("r-"..reactor_depth,
-				116,2,7)
-	else
-	 --todo when lab
-	end
+	--stage name
+	rectfill(115,1,126,6,0)
+	print(stage_name, 116,2,7)
 end
 
 function draw_gun_hud(offset,gun)
@@ -1235,9 +1262,20 @@ hit_anim={43,44,45}
 function draw_bullets()
 	for b in all(bullets) do
 		if b.sprite<0 then
-			pset(b.x,b.y,abs(b.sprite))
+			if b.size==1 then
+				pset(b.x,b.y,abs(b.sprite))
+			else
+				rectfill(
+					b.x,
+					b.y,
+					b.x+b.size,
+					b.y+b.size,
+					abs(b.sprite))
+			end
 		else
-		 --spr(b.x,b.y,b.sprite)
+			--convert to float
+			sz=flr(b.size*8)
+		 spr(b.x,b.y,b.sprite,sz,sz)
 		end
 	end
 end
@@ -1305,7 +1343,17 @@ function shoot_chain()
 	y=sb_y-4
 	dmg=x_gun.spec.dmg
 	blt=blt_straight(x1,y,dmg)
-	blt.speed=1.5
+	blt.speed=2.0
+	add(bullets,blt)
+	sfx(1,-1,0,6)
+end
+function shoot_big_chain()
+	x1=sb_x
+	--undo draw centering
+	y=sb_y-4
+	dmg=x_gun.spec.dmg
+	blt=blt_big_straight(x1,y,dmg)
+	blt.speed=1.2
 	add(bullets,blt)
 	sfx(1,-1,0,6)
 end
@@ -1317,14 +1365,28 @@ function shoot_heated_chain()
 	dmg=x_gun.spec.dmg
 	blt=blt_heated_straight(x1,y,
 		dmg)
-	blt.speed=1.5
+	blt.speed=2.0
 	add(bullets,blt)
+	sfx(1,-1,0,6)
+end
+
+function shoot_big_heated_chain()
+	x1=sb_x
+	--undo draw centering
+	y=sb_y-4
+	dmg=x_gun.spec.dmg
+	blt=blt_big_heated_straight(x1,y,
+		dmg)
+	blt.speed=1.2
+	add(bullets,blt)
+	sfx(1,-1,0,6)
 end
 
 function blt_straight(x,y,dmg)
 	blt={}
 	blt.x=x
 	blt.y=y
+	blt.size=1
 	blt.xend=x
 	blt.yend=0
 	blt.size=1
@@ -1344,6 +1406,18 @@ end
 function blt_heated_straight(x,y,dmg)
 	blt=blt_straight(x,y,dmg)
 	blt.sprite=-8
+	return blt
+end
+
+function blt_big_straight(x,y,dmg)
+	blt=blt_straight(x,y,dmg)
+	blt.size=2
+	return blt
+end
+function blt_big_heated_straight(x,y,dmg)
+	blt=blt_straight(x,y,dmg)
+	blt.sprite=-8
+	blt.size=2
 	return blt
 end
 
@@ -1368,8 +1442,9 @@ function col_pixel(b,x2,y2,
 	--defaults to 8x8
 	w=w or 8
 	h=h or 8
-	if not check_col(b.x,b.y,1,1,
-			x2,y2,w,h) then
+	if not check_col(b.x,b.y,
+			b.size,b.size,x2,y2,w,h)
+	 then
 		return false
 	end
 	return true
@@ -1626,9 +1701,11 @@ end
 
 --the reactor contains fixed
 --stages
+in_stage=false
+loot_pool={}
 
 function init_loot_pool()
-	add_loot(single_chain_gun,
+	add_loot(simple_chain_gun,
 			0.4)
 	add_loot(double_chain_gun,
 			0.2)
@@ -1640,21 +1717,51 @@ function init_loot_pool()
 			0.2)
 end
 
+--bias = vending rarity
+--will try to tilt the odds
+--to this rarity level
 function pick_loot(bias)
+	pool=loot_pool
+	p={}
+	while #p==0 do
+		p=pick_rnd_loots(bias,pool)
+	end
+	while #p!=1 do
+		tmp=pick_rnd_loots(bias,p)
+		if #tmp!=0 then
+			p=tmp
+		end
+	end
+	return p[1]
+end
 
+function pick_rnd_loots(bias,
+		pool)
+	bias_mul=1.5
+	np={}	
+	for l in all(pool) do
+		r=l.r
+		if l.i.rarity==bias then
+			r*=r
+		end
+		if r<rnd() then
+			add(np,l)
+		end
+	end
+	return np
 end
 
 function add_loot(item,rate)
 	l={
-		item=item,
-		rate=rate
+		i=item,
+		r=rate
 	}
 	add(loot_pool,l)
 end
 			
 
 
-stage_name=""
+stage_name=nil
 
 lab_stage_gens={}
 function init_lab()
@@ -1665,6 +1772,7 @@ function init_lab()
 	add(lab_stage_gens,
 			lab_gen_x)
 end
+
 function lab_gen1(d)
 	pool={}
 	add(pool,spawn_spitter)
@@ -1674,7 +1782,12 @@ function lab_gen1(d)
 	add(pool,spawn_wall)
 	add(pool,spawn_wall)
 	add(pool,spawn_flier)
-	gen_stage(0.05,pool,nop)
+	o={
+		rate=0.05,
+		min=2,
+		max=5
+	}
+	gen_stage(o,pool,nop)
 end
 function lab_gen2(d)
 	pool={}
@@ -1683,15 +1796,26 @@ function lab_gen2(d)
 	add(pool,spawn_wall)
 	add(pool,spawn_wall)
 	add(pool,spawn_flier)
-	gen_stage(0.1,pool,nop)
+	o={
+		rate=0.1,
+		min=5,
+		max=10
+	}
+	gen_stage(o,pool,nop)
 end
+
 function lab_gen_x(d)
 	pool={}
 	add(pool,spawn_spitter)
 	add(pool,spawn_wall)
 	add(pool,spawn_wall)
 	add(pool,spawn_flier)
-	gen_stage(0.3,pool,nop)
+	o={
+		rate=0.3,
+		min=15,
+		max=30
+	}
+	gen_stage(o,pool,nop)
 end
 
 lab_depth=1
@@ -1699,6 +1823,7 @@ in_lab=false
 function enter_lab()
 	stage_name="l-"..lab_depth
 	in_lab=true
+	in_stage=true
 	reset_sb()
 	current_mode=stage_mode
 	gen=nil
@@ -1717,26 +1842,45 @@ end
 --rate=rnd % for enemy spawn
 --pool=pool of enemies
 --en_mod=enemy mod function
-function gen_stage(rate,
+function gen_stage(opt,
 		pool,en_mod)
 	--we make a grid of an odd
 	--number so that there is more
 	--room for collision detect
 	--errors
-	for x=1,14 do
-		for y=2,7 do
-			if rate>rnd() then
-				--spawn enemy
-				i=flr(rnd(#pool))
-				i+=1 --1-based offsetting
-				spawn=pool[i]
-				e=spawn(x*9,y*9)
-				en_mod(e)
+	while true do
+		enemies={}
+		for x=1,14 do
+			for y=2,7 do
+				if opt.rate>rnd() then
+					--spawn enemy
+					i=flr(rnd(#pool))
+					i+=1 --1-based offsetting
+					spawn=pool[i]
+					e=spawn(x*9,y*9)
+					en_mod(e)
+				end
 			end
 		end
-	end 
+		--check min and max
+		 c=e_count_no_walls()
+		 --printh(c)
+		 if c<=opt.max and 
+		 		c>=opt.min then
+		 	return
+		 end
+	end
 end
-	
+function e_count_no_walls()
+	c=0
+	for e in all(enemies) do
+		if e.spec!=e_spec_wall then
+			c+=1
+		end
+	end
+	return c
+end	
+
 function gen_rnd_walls()
 	
 end
@@ -1763,6 +1907,7 @@ reactor_stages={
 
 function enter_reactor()
 	in_reactor=true
+	in_stage=true
 	stage_name="r-"..reactor_depth
 	reset_sb()
 	current_mode=stage_mode
@@ -1841,25 +1986,20 @@ function enter_help()
 	prompt_msg=
 "the lab is randomly generated\n"..
 "the reactor is fixed and hard\n"..
-"conquer the lab first\n"..
+"the lab may be too hard at first.\n"..
 "every new level defeated fills\n"..
 "the vending machine with new\n"..
-"loot. make sure to always check.\n"..
-"vending is cleared and refilled\n"..
-"between lab stages.\n"..
+"loot. make sure to check it.\n"..
 "visit the mechanic for expensive\n"..
-"yet ever useful upgrades.\n"..
+"yet always useful upgrades.\n"..
 "keep in mind spiderbot is only\n"..
 "capable of holding 8 items.\n"..
-"dismantle the useless ones in\n"..
-"the inventory screen.\n"..
+"dismantle the useless ones.\n"..
 "the prefix (in parens) indicates\n"..
 "what it is activated by.\n"..
 "x=❎gun, z=🅾️gun, b=🅾️❎boost,\n"..
-"m=module. for x, z, and b, you \n"..
-"you can equip only 1 at a time\n"..
-"but there's no limit to equipping\n"..
-"(m) modules! now go have fun!"
+"m=module. equip multiple (m) \n"..
+"modules!" 
 	prompt_msg_fn=function()
 		print(prompt_msg)
 	end
@@ -1950,20 +2090,27 @@ end
 
 
 function next_stage()
+	in_prompt=false
 	if in_reactor then
+	--later add fixed loot system
 		reactor_depth+=1
 		reset_stage()
 		enter_reactor()
 	else
 		lab_depth+=1
-		enter_lab()
+		human_reset=false
+		in_stage=true
+		enter_vending()
 	end
 end
 function stage_exit()
+	in_stage=false
 	if in_reactor then
+		in_reactor=false
 		reactor_depth+=1
 		back_to_map()
 	else
+		in_lab=false
 		lab_depth+=1
 		back_to_map()
 	end
@@ -1975,7 +2122,8 @@ end
 function init_shops()
 	mechanic_pocket={
 		radiator_mod,
-		simple_chain_gun
+		simple_chain_gun,
+		texas_chain_gun
 	}
 	
 end
@@ -1987,18 +2135,32 @@ function enter_vending()
 "now with 50% more randomness"
 	shop_pocket=vending_pocket
 	in_prompt=false
+	shop_cost_mul=0.2
+	shop_line=1
 	current_mode=shop_mode
 end
 
 
 
 function fill_vending()
+	vending_pocket={}
 	if lab_depth==1 then
-		
+		l=pick_loot(0)
+		add(vending_pocket,l.i)
 	elseif lab_depth<=5 then
-		
+		l1=pick_loot(0)
+		l2=pick_loot(1)
+		add(vending_pocket,l1.i)
+		add(vending_pocket,l2.i)
 	else
-	
+		l1=pick_loot(0)
+		l2=pick_loot(1)
+		l3=pick_loot(2)
+		l4=pick_loot(2)
+		add(vending_pocket,l1.i)
+		add(vending_pocket,l2.i)
+		add(vending_pocket,l3.i)
+		add(vending_pocket,l4.i)
 	end
 end
 
@@ -2009,6 +2171,8 @@ function enter_mechanic()
 "the mechanic bot watches you"
 	shop_pocket=mechanic_pocket
 	in_prompt=false
+	shop_cost_mul=1.0
+	shop_line=1
 	current_mode=shop_mode
 end
 
@@ -2043,6 +2207,7 @@ function shop_mode()
 	y=24
 	lines={}
 	for g in all(shop_pocket) do
+		assert(g != nil)
 		c=7
 		add(lines,{
 			y=y,
@@ -2059,6 +2224,7 @@ function shop_mode()
 		y+=10
 	end
 	rect(0,103,127,127,7)
+	printh(shop_line)
 	item=lines[shop_line].i
 	print(item.desc,2,105,7)
 	shop_navigate(lines)
@@ -2067,7 +2233,7 @@ end
 
 function shop_cost(base)
 		cost=base*shop_cost_mul
-		return cost
+		return flr(cost)
 end
 
 function shop_navigate(lines)
@@ -2105,9 +2271,15 @@ function shop_navigate(lines)
 	if btn(5) and not shop_pressed
 		then
 		shop_pressed=true
-		sb_currency-=shop_cost(
-				item.base_cost)
-		equip(item)
+		cost=shop_cost(item.base_cost)
+		if sb_currency>=cost and
+				not contains(sb_pocket,item)
+			then
+			sb_currency-=cost
+			equip(item)
+		else
+			sfx(5)
+		end		
 	end
 	--inventory
 	if btn(4) and not shop_pressed
@@ -2121,8 +2293,16 @@ function shop_navigate(lines)
 		then
 		sfx(8)
 		shop_pressed=true
-		current_mode=map_mode
-		in_prompt=false
+		if in_stage then
+			if in_reactor then
+				enter_reactor()
+			else
+				enter_lab()
+			end
+		else
+			current_mode=map_mode
+		end
+			in_prompt=false
 		shop_pocket={}
 	end
 	if btn()==0 then
@@ -2133,8 +2313,8 @@ end
 
 
 function print_shop_item(g,x,y,cost,c)
-		print("["..cost.."] ",x,y+2,10)
-		print(g.name,x+16,y+2,c)
+		print("["..cost.."]  ",x,y+2,10)
+		print(g.name,x+24,y+2,c)
 		spr(g.lbl, x-10,y)
 		y+=8
 end
@@ -2163,14 +2343,14 @@ __gfx__
 0ffffff00ffffffffffffffffffffff0000000000058850005899850089aa98000588500000550000005500000099000008998000055550050c11c0550800805
 ff0000ffff00000ff000000ff00000ff00000000000550000058850000899800000550000000000000000000000000000008800000055000500cc00550888805
 f000000ff0000000000000000000000f000000000000000000055000000880000000000000000000000000000000000000000000000000005555555555555555
-55555555000000005555555555555555555555555555555500000000000066600000666000006660000066606666666600000000000000000000000000000000
-5006600500000000500bb00550099005500220055000500505555500000655600006556900065568000655606555555600000000000000000000000000000000
-5667766570000000500bb00550099005500220055066600505555500006555600065556900655568006555686500005600000000000000000000000000000000
-56788765770000005bbbbbb559999995522222255065000505555500065599600655996006559960065599606500005600000000000000000000000000000000
-56708765777000005bbbbbb55999999552222225500050050a0a0a00065599600655996006559960065599606500005600000000000000000000000000000000
-5667766577000000500bb0055009900550022005506660050a0a0a00006555600065556900655568006555686500005600000000000000000000000000000000
-5006600570000000500bb00550099005500220055065000500000000000655600006556900065568000655606555555600000000000000000000000000000000
-55555555000000005555555555555555555555555555555500000000000066600000666000006660000066606666666600000000000000000000000000000000
+55555555000000005555555555555555555555555555555500000000000066600000666000006660000066606666666655555555000000000000000000000000
+5006600500000000500bb00550099005500220055000500505555500000655600006556900065568000655606555555650000505000000000000000000000000
+5667766570000000500bb00550099005500220055066600505555500006555600065556900655568006555686500005656666605000000000000000000000000
+56788765770000005bbbbbb559999995522222255065000505555500065599600655996006559960065599606500005656666605000000000000000000000000
+56708765777000005bbbbbb55999999552222225500050050a0a0a00065599600655996006559960065599606500005654450005000000000000000000000000
+5667766577000000500bb0055009900550022005506660050a0a0a00006555600065556900655568006555686500005654450005000000000000000000000000
+5006600570000000500bb00550099005500220055065000500000000000655600006556900065568000655606555555654400005000000000000000000000000
+55555555000000005555555555555555555555555555555500000000000066600000666000006660000066606666666655555555000000000000000000000000
 55585055050505555777777777777775033333333333333055555555555555555555555555555555555555555555550555555555555555550000000000000000
 5650a55898955565577cccccc666666503ccccccccc3333077777777777777775555556555555555556555555555555555555500005555550000000000000000
 5659500550a58065577cccccc6555555039cc8ccaac3333077777777777777775555666655555555555545554555605555555006660555550000000000000000
