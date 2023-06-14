@@ -1383,23 +1383,24 @@ function shoot_big_heated_chain()
 end
 
 function blt_straight(x,y,dmg)
-	blt={}
-	blt.x=x
-	blt.y=y
-	blt.size=1
-	blt.xend=x
-	blt.yend=0
-	blt.size=1
-	blt.dmg=dmg
-	blt.steps=1
-	--note be careful, speed
-	--shouldn't be too fast
-	blt.speed=1.0
-	blt.friendly=true
-	blt.sprite=-7
-	blt.hit_fn=hit_blt
-	blt.step_fn=step_straight
-	blt.collision_fn=col_pixel
+	blt={
+		x=x,
+		y=y,
+		size=1,
+		xend=x,
+		yend=0,
+		size=1,
+		dmg=dmg,
+		steps=1,
+		--note be careful, speed
+		--shouldn't be too fast
+		speed=1.0,
+		friendly=true,
+		sprite=-7,
+		hit_fn=hit_blt,
+		step_fn=step_straight,
+		collision_fn=col_pixel
+	}
 	return blt
 end
 
