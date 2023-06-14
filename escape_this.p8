@@ -651,21 +651,30 @@ function drop_item(a)
 	return nil
 end
 
+in_dismantle=false
 function dismantle(a)
 	if equipped(a) then
 	 --can't dismantle unless unequipped
 		return
 	end
-	drop_item(a)
-	range=a.trash_range
-	reward=flr(rnd(range))
-	sb_currency+=reward
 	prompt_msg_fn=function()
-print("you dismantled "..
-sub(a.name,5).."\n"..
-"and got "..reward.." chips")
-end
-	goto_prompt(return_to_inv,
+print("dismantle "..
+sub(a.name,5).."?\n"..
+"(❎ to confirm)",8)
+	end
+	goto_prompt(function()
+		drop_item(a)
+		range=a.trash_range
+		reward=flr(rnd(range))
+		sb_currency+=reward
+		prompt_msg_fn=function()
+		print("you dismantled "..
+				sub(a.name,5).."\n"..
+				"and got "..reward.." chips")
+	end
+		goto_prompt(return_to_inv,
+				return_to_inv)
+end,
 			return_to_inv)
 end
 
