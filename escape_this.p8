@@ -300,7 +300,7 @@ current_stage=nil
 function reset_sb()
 	sb_x=64.0
 	sb_y=70.0
-	--sb_health=sb_max_health
+	sb_health=sb_max_health
 	sb_heat=0.0
 	sb_heated=false
 	x_gun.heat=0
@@ -335,6 +335,7 @@ function _init()
 	init_boosts()
 	init_locations()
 	init_shops()
+	init_lab()
 	sb_health=sb_max_health
 	reset_sb()
 	equip(simple_chain_gun)
@@ -1577,6 +1578,68 @@ end
 --the reactor contains fixed
 --stages
 
+lab_stage_gens={}
+function init_lab()
+	add(lab_stage_gens,
+			lab_gen1)
+end
+function lab_gen1()
+	pool={}
+	add(pool,spawn_spitter)
+	add(pool,spawn_spitter)
+	add(pool,spawn_spitter)
+	add(pool,spawn_spitter)
+	add(pool,spawn_wall)
+	add(pool,spawn_wall)
+	add(pool,spawn_flier)
+	gen_stage(0.1,pool,nop)
+end
+function lab_gen_x(x)
+	pool={}
+	add(pool,spawn_spitter)
+	add(pool,spawn_wall)
+	add(pool,spawn_wall)
+	add(pool,spawn_flier)
+	gen_stage(0.1,pool,nop)
+end
+
+lab_depth=0
+in_lab=false
+function enter_lab()
+	lab_depth+=1
+	in_lab=true
+	reset_sb()
+	current_mode=stage_mode
+	if lab_depth>#lab_stage_gens
+		then
+		lab_depth=#lab_stage_gens
+	end
+	gen=lab_stage_gens[lab_depth]
+	gen()
+end
+
+--rate=rnd % for enemy spawn
+--pool=pool of enemies
+--en_mod=enemy mod function
+function gen_stage(rate,
+		pool,en_mod)
+	for x=1,16 do
+		for y=2,6 do
+			if rate>rnd() then
+				--spawn enemy
+				i=flr(rnd(#pool))
+				i+=1 --1-based offsetting
+				spawn=pool[i]
+				e=spawn(x*8,y*8)
+				en_mod(e)
+			end
+		end
+	end 
+end
+	
+function gen_rnd_walls()
+	
+end
 
 
 function stage_1()
@@ -1618,7 +1681,7 @@ locations={}
 reactor_loc=nil
 home_loc=nil
 mechanic_loc=nil
-
+lab_loc=nil
 
 function init_locations()
 	reactor_loc={
@@ -1639,6 +1702,12 @@ function init_locations()
 		msg=
 			"enter shop? (❎ for yes)"
 	}
+	lab_loc={
+		launches=enter_lab,
+		cancel=back_to_map,
+		msg=
+			"enter lab? (❎ for yes)"
+	}
 	
 end
 
@@ -1647,9 +1716,6 @@ function enter_home()
 	human_reset=false
 	current_mode=inv_mode
 end
-
-
-
 
 
 
@@ -1668,6 +1734,8 @@ function build_map()
 		home_loc)
 	add_map_loc(2*8,3*8,
 		mechanic_loc)
+	add_map_loc(7*8,3*8,
+		lab_loc)
 end
 
 function check_col(x1,y1,w1,h1,
