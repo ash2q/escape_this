@@ -12,9 +12,9 @@ __lua__
 acnt=1
 
 top_border=20
-bot_border=120
-midline=60
-r_border=120
+bot_border=124
+midline=80
+r_border=124
 l_border=4
 
 function contains(t,v)
@@ -41,12 +41,23 @@ in_prompt=false
 
 blink_spec={}
 
-common_trash_range=
-		{5,10,15,20}
-uncommon_trash_range=
-		{10,15,20,25,30}
-rare_trash_range=
-		{25,35,40,45,50}
+common_chip_range=
+		{5,20}
+uncommon_chip_range=
+		{10,30}
+rare_chip_range=
+		{25,80}
+exotic_chip_range=
+		{50,120}
+--note: this table is indexed
+--for determining rarity chip
+--rate for dismantling
+chip_range={
+	common_chip_range,
+	uncommon_chip_range,
+	rare_chip_range,
+	exotic_chip_range
+}
 
 
 
@@ -70,8 +81,8 @@ function init_boosts()
 "energy upon blinking",
 		pickup=nop,
 		drop=nop,
-		trash_range=rare_trash_range,
-		base_cost=50
+		base_cost=50,
+		rarity=2
 	}
 	sb_boost={
  	spec=nil,
@@ -112,8 +123,8 @@ function init_modules()
 		pickup=pickup_module,
 		drop=drop_module,
 		stype=item_type.module,
-		trash_range=rare_trash_range,
-		base_cost=200
+		base_cost=200,
+		rarity=2
 	}
 	
 	radiator_mod={
@@ -128,8 +139,8 @@ function init_modules()
 		pickup=pickup_module,
 		drop=drop_module,
 		stype=item_type.module,
-		trash_range=uncommon_trash_range,
-		base_cost=60
+		base_cost=60,
+		rarity=1
 	}
 end
 
@@ -196,17 +207,17 @@ function init_guns()
 		drop=function(i)
 			sb_max_health-=20
 		end,
-		trash_range=common_trash_range,
-		base_cost=40
+		base_cost=40,
+		rarity=1
 	}
 	double_chain_gun={
 		lbl=53,
 		charge=0,
 		--each projectile increases
 		--sb_heat by this amount
-		heat_rate=8.0,
+		heat_rate=10.0,
 		cool_rate=1.0,
-		dmg=4,
+		dmg=5,
 		rate=3,
 		shoot=shoot_chain,
 		shoot_heated=shoot_heated_chain,
@@ -217,8 +228,8 @@ function init_guns()
 		stype=item_type.x_gun,
 		pickup=nop,
 		drop=nop,
-		trash_range=uncommon_trash_range,
-		base_cost=80
+		base_cost=80,
+		rarity=1
 	}
 	
 	--x is primary/fast
@@ -229,7 +240,7 @@ function init_guns()
 		--multiplier for heat rate
 		heat_mul=1.0,
 		--bonus damage for heated gun
-		heated_dmg=1.5,
+		heated_dmg=3.0,
 		--damage multiplier
 		dmg_mul=1.0,
 		heated=false,
@@ -298,8 +309,8 @@ extra_lives=0
 current_stage=nil
 
 function reset_sb()
-	sb_x=64.0
-	sb_y=70.0
+	sb_x=60.0
+	sb_y=100.0
 	sb_health=sb_max_health
 	sb_heat=0.0
 	sb_heated=false
@@ -455,9 +466,10 @@ function stage_mode()
 		human_reset=false
 		current_mode=game_over_mode
 	end
-	if #enemies==0 then
+	if is_stage_empty() then
 		prompt_msg_fn=function()
-			print("stage complete!\n"..
+			print("stage "..stage_name..
+			" complete!\n"..
 				"❎ to continue\n"..
 				"🅾️ to return to map")
 			end
@@ -466,6 +478,18 @@ function stage_mode()
 		current_mode=prompt_mode
 		human_reset=false
 	end
+end
+
+function is_stage_empty()
+	if #enemies==0 then
+		return true
+	end
+	for e in all(enemies) do
+		if e.spec!=e_spec_wall then
+			return false
+		end
+	end
+	return true
 end
 
 end_time=0
@@ -665,8 +689,10 @@ sub(a.name,5).."?\n"..
 	end
 	goto_prompt(function()
 		drop_item(a)
-		range=a.trash_range
-		reward=flr(rnd(range))
+		range=chip_range[a.rarity]
+		limit=range[2]-range[1]+1
+		reward=flr(rnd(limit))
+		reward+=range[1]
 		sb_currency+=reward
 		prompt_msg_fn=function()
 		print("you dismantled "..
@@ -1056,6 +1082,7 @@ end
 --deletes all enemy bullets
 function blink_boost(b)
 	b.frame_count=3
+	sfx(2,-1,0,16)
 	for b in all(bullets) do
 		if not b.friendly then
 			del(bullets,b)
@@ -1219,6 +1246,7 @@ function check_bullet(b)
 			 then
 			 e.health-=b.dmg
 			 total_damage+=b.dmg
+			 sfx(0,-1,0,12)
 			 explode_hit(b.x,b.y)
 			 del(bullets,b)
 			end
@@ -1227,6 +1255,7 @@ function check_bullet(b)
 		if b.collision_fn(b,
 			sb_x-4, sb_y-4)
 		then
+			sfx(3,-1,0,16)
 			explode_hit(b.x,b.y)
 			if sb_inv_count==0 then
 				if sb_heated then
@@ -1260,6 +1289,7 @@ function shoot_chain()
 	blt=blt_straight(x1,y,dmg)
 	blt.speed=1.5
 	add(bullets,blt)
+	sfx(1,-1,0,6)
 end
 
 function shoot_heated_chain()
@@ -1361,6 +1391,7 @@ function step_line(b)
 	b.x-=b.speed*cos(ang)
 	b.y-=b.speed*sin(ang)	
 end
+
 
 --e is enemy. optional
 function explode_hit(x,y)
@@ -1578,12 +1609,46 @@ end
 --the reactor contains fixed
 --stages
 
+function init_loot_pool()
+	add_loot(single_chain_gun,
+			0.4)
+	add_loot(double_chain_gun,
+			0.2)
+	add_loot(blink_spec,
+			0.1)
+	add_loot(dev_mode_mod,
+			0.1)
+	add_loot(radiator_mod,
+			0.2)
+end
+
+function pick_loot(bias)
+
+end
+
+function add_loot(item,rate)
+	l={
+		item=item,
+		rate=rate
+	}
+	add(loot_pool,l)
+	end
+end
+			
+
+
+stage_name=""
+
 lab_stage_gens={}
 function init_lab()
 	add(lab_stage_gens,
 			lab_gen1)
+	add(lab_stage_gens,
+			lab_gen2)
+	add(lab_stage_gens,
+			lab_gen_x)
 end
-function lab_gen1()
+function lab_gen1(d)
 	pool={}
 	add(pool,spawn_spitter)
 	add(pool,spawn_spitter)
@@ -1592,30 +1657,44 @@ function lab_gen1()
 	add(pool,spawn_wall)
 	add(pool,spawn_wall)
 	add(pool,spawn_flier)
-	gen_stage(0.1,pool,nop)
+	gen_stage(0.05,pool,nop)
 end
-function lab_gen_x(x)
+function lab_gen2(d)
 	pool={}
+	add(pool,spawn_spitter)
 	add(pool,spawn_spitter)
 	add(pool,spawn_wall)
 	add(pool,spawn_wall)
 	add(pool,spawn_flier)
 	gen_stage(0.1,pool,nop)
+end
+function lab_gen_x(d)
+	pool={}
+	add(pool,spawn_spitter)
+	add(pool,spawn_wall)
+	add(pool,spawn_wall)
+	add(pool,spawn_flier)
+	gen_stage(0.3,pool,nop)
 end
 
-lab_depth=0
+lab_depth=1
 in_lab=false
 function enter_lab()
-	lab_depth+=1
+	stage_name="l-"..lab_depth
 	in_lab=true
 	reset_sb()
 	current_mode=stage_mode
+	gen=nil
 	if lab_depth>#lab_stage_gens
 		then
-		lab_depth=#lab_stage_gens
+		gen=lab_stage_gens[#lab_stage_gens]
+	else
+		gen=lab_stage_gens[lab_depth]
 	end
-	gen=lab_stage_gens[lab_depth]
-	gen()
+	while #enemies<4 do
+		reset_sb()
+		gen(lab_depth)
+	end
 end
 
 --rate=rnd % for enemy spawn
@@ -1623,14 +1702,18 @@ end
 --en_mod=enemy mod function
 function gen_stage(rate,
 		pool,en_mod)
-	for x=1,16 do
-		for y=2,6 do
+	--we make a grid of an odd
+	--number so that there is more
+	--room for collision detect
+	--errors
+	for x=1,14 do
+		for y=2,7 do
 			if rate>rnd() then
 				--spawn enemy
 				i=flr(rnd(#pool))
 				i+=1 --1-based offsetting
 				spawn=pool[i]
-				e=spawn(x*8,y*8)
+				e=spawn(x*9,y*9)
 				en_mod(e)
 			end
 		end
@@ -1663,6 +1746,7 @@ reactor_stages={
 
 function enter_reactor()
 	in_reactor=true
+	stage_name="r-"..reactor_depth
 	reset_sb()
 	current_mode=stage_mode
 	if 
@@ -1682,31 +1766,48 @@ reactor_loc=nil
 home_loc=nil
 mechanic_loc=nil
 lab_loc=nil
+vending_loc=nil
 
 function init_locations()
 	reactor_loc={
 		launches=enter_reactor,
 		cancel=stage_cancel,
-		msg=
-			"enter reactor? (❎ for yes)"
+		msg_fn=function()
+		print("enter reactor at depth "..
+			reactor_depth.."?\n"..
+			"(❎ for yes)")
+		end
 	}
 	home_loc={
 		launches=enter_home,
 		cancel=back_to_map,
-		msg=
-			"enter home? (❎ for yes)"
+		msg_fn=function()
+			print("enter home? (❎ for yes)")
+		end
 	}
 	mechanic_loc={
 		launches=enter_mechanic,
 		cancel=back_to_map,
-		msg=
-			"enter shop? (❎ for yes)"
+		msg_fn=function()
+			print("enter shop? (❎ for yes)")
+		end
 	}
 	lab_loc={
 		launches=enter_lab,
 		cancel=back_to_map,
-		msg=
-			"enter lab? (❎ for yes)"
+		msg_fn=function()
+		print("enter lab at depth "..
+			lab_depth.."?\n"..
+			"(❎ for yes)")
+		end
+	}
+	vending_loc={
+		launches=enter_vending,
+		cancel=back_to_map,
+		msg_fn=function()
+		print("check latest vending machine?\n"..
+			"(❎ for yes)")
+		end
 	}
 	
 end
@@ -1728,21 +1829,23 @@ function add_map_loc(x,y,loc)
 end
 
 function build_map()
-	add_map_loc(12*8,3*8,
+	add_map_loc(1*8,1*8,
 		reactor_loc)
 	add_map_loc(4*8,7*8,
 		home_loc)
-	add_map_loc(2*8,3*8,
+	add_map_loc(7*8,1*8,
 		mechanic_loc)
-	add_map_loc(7*8,3*8,
+	add_map_loc(11*8,6*8,
 		lab_loc)
+	add_map_loc(13*8,3*8,
+		vending_loc)
 end
 
 function check_col(x1,y1,w1,h1,
 										x2,y2,w2,h2)
 	x_col=false
 	--right edge
-	if x1<x2+w2 and x1>=x2 then
+	if x1<x2+w2 and x1>x2 then
 		x_col=true
 	end
 	--left edge
@@ -1750,7 +1853,7 @@ function check_col(x1,y1,w1,h1,
 		x_col=true
 	end
 	y_col=false
-	if y1<y2+h2 and y1>=y2 then
+	if y1<y2+h2 and y1>y2 then
 		y_col=true
 	end
 	if y1+h1>y2 and y1<=y2+h2 then
@@ -1773,9 +1876,7 @@ function check_player_choice()
 							16,
 							16) then
 			--player chose
-			prompt_msg_fn=function()
-				print(l.loc.msg)
-			end
+			prompt_msg_fn=l.loc.msg_fn
 			goto_prompt(l.loc.launches,
 					l.loc.cancel)
 			
@@ -1797,7 +1898,8 @@ function next_stage()
 		reset_stage()
 		enter_reactor()
 	else
-		--todo
+		lab_depth+=1
+		enter_lab()
 	end
 end
 function stage_exit()
@@ -1805,7 +1907,6 @@ function stage_exit()
 		reactor_depth+=1
 		back_to_map()
 	else
-	--todo
 		lab_depth+=1
 		back_to_map()
 	end
@@ -1822,6 +1923,28 @@ function init_shops()
 	
 end
 
+function enter_vending()
+	reset_sb()
+	human_reset=false
+	shop_msg=
+"now with 50% more randomness"
+	shop_pocket=vending_pocket
+	in_prompt=false
+	current_mode=shop_mode
+end
+
+
+
+function fill_vending()
+	if lab_depth==1 then
+		
+	elseif lab_depth<=5 then
+		
+	else
+	
+	end
+end
+
 function enter_mechanic()
 	reset_sb()
 	human_reset=false
@@ -1833,7 +1956,7 @@ function enter_mechanic()
 end
 
 mechanic_pocket={}
-vending_pockets={}
+vending_pocket={}
 shop_pocket={}
 in_shop=false
 in_shop_inv=false
@@ -1925,7 +2048,7 @@ function shop_navigate(lines)
 		shop_pressed=true
 		sb_currency-=shop_cost(
 				item.base_cost)
-		pickup_item(item)
+		equip(item)
 	end
 	--inventory
 	if btn(4) and not shop_pressed
@@ -2135,14 +2258,14 @@ __label__
 88888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888
 
 __map__
-4a4b4a4b4a4b4a4b4a4b4a4b4a4b4a4b00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-4b4a4b4a4b4a4b4a4b4b4a4b4a4b4a4b00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-5b5a5b5a5b5a5b5a5b5b5a5b5a5b5a5b00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-4a4b46474a4a4b42434a4a4b40414a4b00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-5a5b56575a5a5b52535a5a5b50515a5b00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+4a4b4a4b4a4b4a4b4a4b4a4a4a4b4a4b00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+4b40414a4b4a4b46474b5a5b4a4b4a4b00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+5b50515a5b5a5b56575b5a5b5a5b5a5b00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+4a4b4a4b4a4a4b4a4b4a4a4b4a44454b00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+5a5b5a5b5a5a5b5a5b5a5a5b5a54555b00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 4a4b4a4b4a4b4a4b4a4b4a4b4a4b5a5b00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-4b4a4b4a4b5b4a4b5a5b5a5b5a5b5a5b00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-5b5a5b5a48495a5b4a4b4a4b4a4b4a4b00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+4b4a4b4a4b5b4a4b5a5b5a42435b5a5b00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+5b5a5b5a48495a5b4a4b4a52534b4a4b00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 4b4a4b4a58594a4b4a4b4a4b4a4b4a4b00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 5b5a5b5a5b4b5a5b5a5b5a5b5a5b5a5b00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 4b4a4b5b5a5b4a4b4a4b4a4b4a4b5a5b00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
@@ -2150,3 +2273,8 @@ __map__
 4b4a4b5b5a5b4a4b4a4b5a5b5a5b4a4b00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 5b5a5b4b4a4b4a4b4a4b4a4b4a4b4a4b00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 4b4a4b5b5a5b5a5b5a5b5a5b5a5b5a5b00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+__sfx__
+000100000e6500e6500e65038670396703a6703b6703c650146500f6500f6500f6300d62011600116000f6000e600006000060000600006000060000600006000060000600006000060000600006000060000600
+000200001365013650064702f670194501547011460104000f400246003860037600366003c600316003a600236001a6000d60010600126001360013600136001360021600216002060020600206002060020600
+000100001c7501c7501c7501c7501c7501c7501c7501c7501c7501c750243502f35030350313503b3503b3503b350303502375022750227502275021750217502175021750217502175021750217502075020750
+000100000c6500c6500c6500c6500b6500b6500a6500a6500a650096500d650136503a3703b4703a4703a4703a3703a35014650176702367021650206501e6501c6501a6501765013650116500f6500d6500d650
