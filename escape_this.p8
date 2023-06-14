@@ -41,6 +41,14 @@ in_prompt=false
 
 blink_spec={}
 
+common_trash_range=
+		{5,10,15,20}
+uncommon_trash_range=
+		{10,15,20,25,30}
+rare_trash_range=
+		{25,35,40,45,50}
+
+
 
 function init_boosts()
 	blink_spec={
@@ -61,7 +69,9 @@ function init_boosts()
 "a powerful burst of magnetic\n"..
 "energy upon blinking",
 		pickup=nop,
-		drop=nop
+		drop=nop,
+		trash_range=rare_trash_range,
+		base_cost=50
 	}
 	sb_boost={
  	spec=nil,
@@ -84,29 +94,42 @@ end
 --upgrades
 modules={}
 
-function do_dev_mode()
-	printh("equipped dev mode")
-	sb_currency+=100
-end
-function undo_dev_mode()
-	printh("unequipped dev mode")
-	sb_currency-=100
-end
+
 
 dev_mode_mod={}
+radiator_mod={}
+
 function init_modules()
 	dev_mode_mod={
 		name="(m) dev mode",
 		desc=
 "there seems to be a bug stuck\n"..
 "in the electronics. best to\n"..
-"discard it",
+"dismantle it",
 		lbl=52,
 		do_effect=do_dev_mode,
 		undo_effect=undo_dev_mode,
 		pickup=pickup_module,
 		drop=drop_module,
-		stype=item_type.module
+		stype=item_type.module,
+		trash_range=rare_trash_range,
+		base_cost=200
+	}
+	
+	radiator_mod={
+		name="(m) radiator",
+		desc=
+"an ancient cooling device. not\n"..
+"very efficient but better than\n"..
+"nothing. looks shiny",
+		lbl=52,
+		do_effect=do_radiator,
+		undo_effect=undo_radiator,
+		pickup=pickup_module,
+		drop=drop_module,
+		stype=item_type.module,
+		trash_range=uncommon_trash_range,
+		base_cost=60
 	}
 end
 
@@ -116,6 +139,22 @@ end
 
 function drop_module(m)
 	del(equipped_mods,m)
+end
+
+function do_dev_mode()
+	printh("equipped dev mode")
+	sb_currency+=50
+end
+function undo_dev_mode()
+	printh("unequipped dev mode")
+	sb_currency-=50
+end
+
+function do_radiator()
+	sb_cool+=5
+end
+function undo_radiator()
+	sb_cool-=5
 end
 
 empty_gun={}
@@ -147,11 +186,18 @@ function init_guns()
 		name="(x) simple chain gun",
 		desc=
 "a simple machine gun. seems to\n"..
-"give its user slightly more\n"..
-"health",
+"give its holder slightly more\n"..
+"max health",
 		stype=item_type.x_gun,
-		pickup=nop,
-		drop=nop
+		pickup=function(i)
+			sb_health+=20
+			sb_max_health+=20
+		end,
+		drop=function(i)
+			sb_max_health-=20
+		end,
+		trash_range=common_trash_range,
+		base_cost=40
 	}
 	double_chain_gun={
 		lbl=53,
@@ -170,7 +216,9 @@ function init_guns()
 "fast, warms up even faster\n",
 		stype=item_type.x_gun,
 		pickup=nop,
-		drop=nop
+		drop=nop,
+		trash_range=uncommon_trash_range,
+		base_cost=80
 	}
 	
 	--x is primary/fast
@@ -252,7 +300,7 @@ current_stage=nil
 function reset_sb()
 	sb_x=64.0
 	sb_y=70.0
-	sb_health=sb_max_health
+	--sb_health=sb_max_health
 	sb_heat=0.0
 	sb_heated=false
 	x_gun.heat=0
@@ -286,6 +334,8 @@ function _init()
 	init_enemies()
 	init_boosts()
 	init_locations()
+	init_shops()
+	sb_health=sb_max_health
 	reset_sb()
 	equip(simple_chain_gun)
 	equip(double_chain_gun)
@@ -429,7 +479,8 @@ function game_over_mode()
 	if extra_lives<0 then
 		color(7)
 		print("you could not escape this")
-		print("pockets: chips: "..sb_currency)
+		print("chips: "..sb_currency..
+				", pockets:")
 		y=12
 		y=print_pocket(y)
 		color(7)
@@ -480,7 +531,7 @@ function inv_mode()
 	cls()
 	color(7)
 	print("❎=equip,⬅️=unequip")
-	print("🅾️=trash, ➡️=exit")
+	print("🅾️=dismantle, ➡️=exit")
 	print("chips: "..sb_currency..
 		", space: "..
 		(sb_pocket_max-#sb_pocket))
@@ -549,20 +600,27 @@ function inv_navigate(lines)
 	--exit
 	if btn(1) and not inv_pressed
 		then
-		--is this a valid assumption?
-		current_mode=map_mode
-		in_prompt=false
+		if in_shop then
+			in_shop_inv=false
+			human_reset=false
+		else
+			current_mode=map_mode
+			in_prompt=false
+		end
+		
 	end
 	--unequip
 	if btn(0) and not inv_pressed
 		then
 		inv_pressed=true
-		unequip_item(item)
+		unequip(item)
 	end
 	--dismantle
  if btn(4) and not inv_pressed
 		then
 		inv_pressed=true
+		dismantle(item)
+		inv_line=1
 	end
 	if btn()==0 then
 		inv_pressed=false
@@ -583,7 +641,7 @@ end
 
 function drop_item(a)
 	if 
-			contains(pocket,a)
+			contains(sb_pocket,a)
 		then
 		a.drop()
 		del(sb_pocket, a)
@@ -593,6 +651,31 @@ function drop_item(a)
 	return nil
 end
 
+function dismantle(a)
+	if equipped(a) then
+	 --can't dismantle unless unequipped
+		return
+	end
+	drop_item(a)
+	range=a.trash_range
+	reward=flr(rnd(range))
+	sb_currency+=reward
+	prompt_msg_fn=function()
+print("you dismantled "..
+sub(a.name,5).."\n"..
+"and got "..reward.." chips")
+end
+	goto_prompt(return_to_inv,
+			return_to_inv)
+end
+
+function return_to_inv()
+	if in_shop_inv then
+		current_mode=shop_mode
+	else
+		current_mode=inv_mode
+	end
+end
 
 function equipped(g)
 	return (x_gun.spec==g or
@@ -622,7 +705,7 @@ function equip(g)
 	end
 end
 
-function unequip_item(g)
+function unequip(g)
 	stype=g.stype
 	if stype==item_type.x_gun then
 		--does nothing, can't unequip
@@ -642,7 +725,11 @@ end
 function print_pocket(y)
 	x=10
 	for i in all(sb_pocket) do
-		print_item(i,x,y,7)
+		if equipped(i) then
+			print_item(i,x,y,10)
+		else
+			print_item(i,x,y,6)
+		end
 		y+=10
 	end
 	return y
@@ -1521,6 +1608,7 @@ end
 locations={}
 reactor_loc=nil
 home_loc=nil
+mechanic_loc=nil
 
 
 function init_locations()
@@ -1536,6 +1624,13 @@ function init_locations()
 		msg=
 			"enter home? (❎ for yes)"
 	}
+	mechanic_loc={
+		launches=enter_mechanic,
+		cancel=back_to_map,
+		msg=
+			"enter shop? (❎ for yes)"
+	}
+	
 end
 
 function enter_home()
@@ -1543,6 +1638,7 @@ function enter_home()
 	human_reset=false
 	current_mode=inv_mode
 end
+
 
 
 
@@ -1561,6 +1657,8 @@ function build_map()
 		reactor_loc)
 	add_map_loc(4*8,7*8,
 		home_loc)
+	add_map_loc(2*8,3*8,
+		mechanic_loc)
 end
 
 function check_col(x1,y1,w1,h1,
@@ -1639,9 +1737,146 @@ function stage_cancel()
 	back_to_map()
 end
 
-shop_pocket={}
-function shop_mode()
+function init_shops()
+	mechanic_pocket={
+		radiator_mod,
+		simple_chain_gun
+	}
 	
+end
+
+function enter_mechanic()
+	reset_sb()
+	human_reset=false
+	shop_msg=
+"the mechanic bot watches you"
+	shop_pocket=mechanic_pocket
+	in_prompt=false
+	current_mode=shop_mode
+end
+
+mechanic_pocket={}
+vending_pockets={}
+shop_pocket={}
+in_shop=false
+in_shop_inv=false
+shop_line=1
+shop_cost_mul=1.0
+shop_msg=nil
+shop_pressed=false
+function shop_mode()
+	assert(#shop_pocket>0)
+	cls()
+	in_shop=true
+	if in_shop_inv then
+		inv_mode()
+		return
+	end
+	color(7)
+	space=sb_pocket_max-#sb_pocket
+	print(shop_msg)
+	print("❎=buy,🅾️=inventory")
+	print("➡️=exit")
+	print("chips: "..sb_currency..
+		", space: "..
+		space)
+	--offset includes
+	--item icon and arrow
+	x=14
+	y=24
+	lines={}
+	for g in all(shop_pocket) do
+		c=7
+		add(lines,{
+			y=y,
+			i=g
+		})
+		cost=shop_cost(g.base_cost)
+		if cost>sb_currency then
+			c=8
+		end
+		if contains(sb_pocket,g) then
+			c=5
+		end
+		print_shop_item(g,x,y,cost,c)
+		y+=10
+	end
+	rect(0,103,127,127,7)
+	item=lines[shop_line].i
+	print(item.desc,2,105,7)
+	shop_navigate(lines)
+	in_shop=false
+end
+
+function shop_cost(base)
+		cost=base*shop_cost_mul
+		return cost
+end
+
+function shop_navigate(lines)
+	if btn()==0 then
+		human_reset=true
+	end
+	if not human_reset then
+		return
+	end
+	item=lines[shop_line].i
+	--draw pointer
+	spr(49,0,lines[shop_line].y)
+	
+	--down
+	if btn(3) and not shop_pressed
+		then
+		shop_pressed=true
+		shop_line+=1
+		if shop_line>#lines then
+			shop_line=1
+		end
+	end
+		--up
+	if btn(2) and not shop_pressed
+		then
+		shop_pressed=true
+		shop_line-=1
+		if shop_line<1 then
+			shop_line=#lines
+		end
+	end
+	--buy
+	if btn(5) and not shop_pressed
+		then
+		shop_pressed=true
+		sb_currency-=shop_cost(
+				item.base_cost)
+		pickup_item(item)
+	end
+	--inventory
+	if btn(4) and not shop_pressed
+		then
+		shop_pressed=true
+		human_reset=false
+		in_shop_inv=true
+	end
+	--exit
+	if btn(1) and not shop_pressed
+		then
+		shop_pressed=true
+		current_mode=map_mode
+		in_prompt=false
+		shop_pocket={}
+	end
+	if btn()==0 then
+		shop_pressed=false
+	end
+end
+
+
+
+function print_shop_item(g,x,y,cost,c)
+		print("["..cost.."] ",x,y+2,10)
+		print(g.name,x+16,y+2,c)
+		spr(g.lbl, x-10,y)
+		y+=8
 end
 __gfx__
 0007700000000000000000000000000000000000000000000cccccc0000009000090000090077009555555555555555555555555006666000066660000555500
