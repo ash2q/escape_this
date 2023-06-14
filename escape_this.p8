@@ -1135,19 +1135,22 @@ function gun_control()
 				(z_gun.spec.heat_rate*
 				z_gun.heat_mul)*
 			 sb_gun_heat_mul
-		if z_gun.heat>100
+		
+		if z_gun.heat>=100
 	 then
 			sb_heat+=sb_gun_overheat
 			sb_heat=min(sb_heat,sb_max_heat)
-			
 		end
 		if z_gun.c >= sb_max_charge
 	 then
+	 	sfx(10,2)
 			z_gun.c=sb_max_charge
 		else
+			sfx(9,2)
 			z_gun.c+=z_gun.spec.charge_rate
 		end
 		sb_charging=true
+		
 	end
 	--released buttons
 	if btn()==0 then
@@ -1155,10 +1158,12 @@ function gun_control()
 		then
 			z_gun.c=0
 			z_gun.spec.shoot()
+			sfx(11,2)
 		else
 			z_gun.c=0
 		end
 		sb_charging=false
+		
 	end
 	
 	if x_gun.heat>x_gun.max_heat
@@ -1526,6 +1531,54 @@ function blt_straight(x,y,dmg)
 	return blt
 end
 
+function blt_beam(x,y,dmg)
+	blt={
+		x=x,
+		y=y,
+		size=1,
+		xend=x,
+		yend=0,
+		size=2, --is width
+		dmg=dmg,
+		steps=1,
+		--note be careful, speed
+		--shouldn't be too fast
+		speed=1.0,
+		friendly=true,
+		sprite=-7,
+		hit_fn=hit_blt,
+		step_fn=step_beam,
+		collision_fn=col_beam,
+		frames=10
+	}
+	return blt
+end
+
+function step_beam(b)
+	--do nothing actually
+end
+function col_beam(b,x2,y2,
+			w,h)
+--b = bullet
+--x2,y2 = target sprite to check
+--w,h = size of target sprite
+	--defaults to 8x8
+	w=w or 8
+	h=h or 8
+	if not check_col(b.x,0,
+			b.size,b.size,x2,y2,w,h)
+	 then
+		return false
+	end
+	return true
+	--do pixel perfect check
+	--assumes black background
+	--col=pget(b.x,b.y)
+	--return col!=0
+end
+
+
+
 function blt_big_straight(x,y,dmg)
 	blt=blt_straight(x,y,dmg)
 	blt.size=2
@@ -1614,7 +1667,7 @@ function explode_hit(x,y)
 end
 
 function shoot_beam()
-
+	
 end
 -->8
 --enemies
@@ -2676,4 +2729,6 @@ __sfx__
 0002000031650316502f6502d650246501c65014650106500d6501560015600156001560000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 000200000a3500a3500a3500a3500a3501a3501a3501a3501a3501a35014350143501435014350143501435014350000000000000000000000000000000000000000000000000000000000000000000000000000
 000300001c650176501065000600166000460014650186501b6501c6001c6001c6001c6001d600000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-000100001660016600166001760024600356002d600216001f6000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+000608010707007070070700705007050070500705007070080000a0000a0000a00009000080000900009000090000a0000900000000000000000000000000000000000000000000000000000000000000000000
+00010f0015050170501a0501e05022050250502705028050260502505023050200501c05019050160501600015000000000000000000000000000000000000000000000000000000000000000000000000000000
+000400000e7500e7500e7500e7500e7500e7500e7500e7502375023750237502375023750237502375023750237500a7500975006750037500275000000000000000000000000000000000000000000000000000
