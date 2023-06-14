@@ -12,11 +12,7 @@ __lua__
 --of still entities
 acnt=1
 
-top_border=20
-bot_border=124
-midline=80
-r_border=124
-l_border=4
+scroll_speed=20
 
 function contains(t,v)
 	for i in all(t) do
@@ -520,9 +516,25 @@ function map_mode()
 	--end
 end
 
-
+grid_scroll=1
 function stage_mode()
 	cls()
+	c=acnt%scroll_speed
+	if c==0 then
+		grid_scroll+=1
+		grid_scroll%=scroll_speed
+	end
+	--draw grid lines
+	--horizontal
+	for i=0,(128/8) do
+		line(0,grid_scroll+i*8,128,
+			grid_scroll+i*8,1)
+	end
+	--vertical
+	i=0
+	for i=0,(128/8) do
+		line(i*8,8,i*8,128,1)
+	end
 	sb_moved=false
 	
 	player_control()
@@ -541,6 +553,11 @@ function stage_mode()
 	draw_explosions()
 	draw_hud()
 	draw_boosts()
+	
+	c=acnt%scroll_speed
+	if c==0 then
+		scroll_enemies()
+	end
 	
 	clean_bullets()
 	clean_enemies()
@@ -1054,7 +1071,10 @@ end
 -->8
 --controls and boosts
 
-
+--number of frames the player
+--has been in collision
+frames_in_col=0
+prev_col_enemies={}
 
 function player_control()
 	l=0
@@ -1083,20 +1103,59 @@ function player_control()
 	else
 			sb_moved=false
 	end
-	--keep from going out of bounds
-	m=midline
-	if current_mode!=stage_mode
+	clear_col=true
+	if current_mode==stage_mode
 	 then
-		m=1
+		for e in all(enemies) do
+		--to make collisions less
+		--terrible, use 10px large
+		--spiderbot
+			if check_col(
+					sb_x,sb_y,10,10,e.x,e.y,8,8)
+				then
+				clear_col=false
+				if not 
+						contains(prev_col_enemies,e)
+					then
+					add(prev_col_enemies,e)
+				end
+				frames_in_col+=1
+				--revert to previous coord
+				sb_x=x
+				sb_y=y
+				if frames_in_col>1 then
+					printh("in col")
+					if last_edge_right then
+						sb_x-=1
+					end
+					if last_edge_left then
+						sb_x+=1
+					end
+					if last_edge_top then
+						sb_y-=1
+					end
+					if last_edge_bottom then
+						sb_y+=1
+					end
+				end
+			else
+			end
+		end
+		if clear_col then
+			prev_col_enemies={}
+			frames_in_col=0
+		end
 	end
-	if sb_y<m or
-				sb_y>bot_border then
+		--keep from going out of bound
+	if sb_y<4 or
+				sb_y>124 then
 		sb_y=y
 	end
-	if sb_x<l_border or
-				sb_x>r_border then
+	if sb_x<4 or
+				sb_x>124 then
 		sb_x=x
 	end
+
 end
 
 
@@ -1456,7 +1515,7 @@ function shoot_chain()
 	dmg=get_shot_dmg(x_gun)
 	blt=blt_straight(x1,y,dmg)
 	blt.speed=2.0
-	if x_gun_heated() then
+	if x_is_heated() then
 		--make red
 		blt.sprite=-8
 	end
@@ -1870,6 +1929,11 @@ function flier_update(e)
 	add(bullets,blt)
 end
 
+function scroll_enemies()
+	for e in all(enemies) do
+		e.y+=1
+	end
+end
 -->8
 --stages and maps
 
@@ -2220,22 +2284,34 @@ function build_map()
 		help_loc)
 end
 
+--last edge colliding on 
+--1st set of coordinates
+last_edge_top=nil
+last_edge_bottom=nil
+last_edge_right=nil
+last_edge_left=nil
 function check_col(x1,y1,w1,h1,
 										x2,y2,w2,h2)
 	x_col=false
-	--right edge
-	if x1<x2+w2 and x1>x2 then
+	last_edge_right=
+		x1<x2+w2 and x1>x2
+	if last_edge_right then
 		x_col=true
 	end
-	--left edge
-	if x1+w1>x2 and x1<=x2+w2 then
+	last_edge_left=
+		x1+w1>x2 and x1<=x2+w2
+	if last_edge_left then
 		x_col=true
 	end
 	y_col=false
-	if y1<y2+h2 and y1>y2 then
+	last_edge_top=
+		y1<y2+h2 and y1>y2
+	if last_edge_top then
 		y_col=true
 	end
-	if y1+h1>y2 and y1<=y2+h2 then
+	last_edge_bottom=
+		y1+h1>=y2 and y1<y2+h2
+	if last_edge_bottom then
 		y_col=true
 	end
 	
@@ -2500,6 +2576,8 @@ function print_shop_item(g,x,y,cost,c)
 		spr(g.lbl, x-10,y)
 		y+=8
 end
+
+
 __gfx__
 0007700055555555000000000000000000000000000000000cccccc0000009000090000090077009555555555555555555555555006666000066660000555500
 000770005000000500000500005000000060c600006006000a6cc6a0000005000050000080077008500000055606606550000005006006000696696005755750
