@@ -12,10 +12,10 @@ __lua__
 --of still entities
 acnt=1
 
-scroll_speed=10
+scroll_speed=4
 map_height=128*2
 
-map_y=nil
+map_window_y=nil
 
 function contains(t,v)
 	for i in all(t) do
@@ -527,7 +527,7 @@ function stage_mode()
 	c=acnt%scroll_speed
 	if c==0 then
 		grid_scroll+=1
-		map_y+=1
+		map_window_y-=1
 		grid_scroll%=scroll_speed
 	end
 	--draw grid lines
@@ -541,6 +541,10 @@ function stage_mode()
 	for i=0,(128/8) do
 		line(i*8,8,i*8,128,1)
 	end
+	
+	if acnt%scroll_speed==0 then
+		scroll_map_enemies()
+	end
 	sb_moved=false
 	
 	player_control()
@@ -552,21 +556,20 @@ function stage_mode()
 	move_bullets()
 	boost_update()
 	
-	draw_player()
 	draw_enemies()
+	draw_player()
+
 	
 	draw_bullets()
 	draw_explosions()
 	draw_hud()
 	draw_boosts()
-	
-	c=acnt%scroll_speed
-	if c==0 then
-		scroll_enemies()
-	end
+
 	
 	clean_bullets()
 	clean_enemies()
+	
+
 	
 	x_gun.heat-=
 		x_gun.spec.cool_rate*
@@ -597,7 +600,8 @@ function stage_mode()
 		human_reset=false
 		current_mode=game_over_mode
 	end
-	if is_stage_empty() then
+	if is_stage_empty() and
+		map_window_y<0 then
 		fill_vending()
 		prompt_msg_fn=function()
 			print("stage "..stage_name..
@@ -661,8 +665,8 @@ function game_over_mode()
 			stop()
 		end
 		palt(0,false)
-		spr(192,96,32,2,2)
-		spr(224,32,32+16,2,2)
+		spr(192,96,8,2,2)
+		spr(224,96,8+16,2,2)
 		palt(0,true)
 	else
 		print("it seems as though you")
@@ -1115,6 +1119,7 @@ function player_control()
 	end
 	clear_col=true
 	if current_mode==stage_mode
+			and sb_inv_count<=0
 	 then
 		for e in all(enemies) do
 		--to make collisions less
@@ -1796,8 +1801,8 @@ function clean_enemies()
 				e.spec.anim[1],
 				e.x-4,e.y-4)
 		end
-		if (e.x>125 or e.x<0) or
-			(e.y>132 or e.y<0) then
+		if (e.x>128 or e.x<0) or
+			(e.y>134 or e.y<0) then
 			printh("deleted out of bounds enemy")
 			del(enemies, e)
 		end
@@ -1930,31 +1935,29 @@ function flier_update(e)
 	add(bullets,blt)
 end
 
-function scroll_enemies()
-	map_y-=1
+function scroll_map_enemies()
 	for e in all(enemies) do
 		e.y+=1
 	end
-	for x=1,14 do
-		if map_y%8==0 then
-			c=sget(x,96+(map_y/8))
-		else
-			c=0
-		end
-		printh("c: "..c)
-		spawn=e_map[c]
-		if spawn!=nil then
-			printh("spawn enemy")
-			spawn(x*8,8)
+	if map_window_y%8==0 and
+			map_window_y>0 then
+		for x=1,14 do
+			c=sget(x,96+(map_window_y/8))
+			
+			spawn=e_map[c]
+			if spawn!=nil then
+				spawn(x*8,4)
+			end
 		end
 	end
 end
 --populates initial enemies
 --before scrolling
 function spawn_stage()
-	map_y=map_height
+	map_window_y=map_height
 	for i=0,80 do
-		scroll_enemies()
+		map_window_y-=1
+		scroll_map_enemies()
 	end
 	--for x=1,14 do
 	--	for y=1,map_height/8-1 do
