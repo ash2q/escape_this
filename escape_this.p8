@@ -148,7 +148,7 @@ function init_modules()
 		pickup=pickup_module,
 		drop=drop_module,
 		stype=item_type.module,
-		base_cost=60,
+		base_cost=50,
 		rarity=2
 	}
 	harness_mod={
@@ -261,7 +261,7 @@ function init_guns()
 		drop=function(i)
 			sb_max_health-=20
 		end,
-		base_cost=40,
+		base_cost=70,
 		rarity=1,
 		splash=0
 	}
@@ -281,7 +281,7 @@ function init_guns()
 		stype=item_type.x_gun,
 		pickup=nop,
 		drop=nop,
-		base_cost=20,
+		base_cost=50,
 		rarity=3,
 		splash=0
 	}
@@ -290,7 +290,7 @@ function init_guns()
 		charge=0,
 		heat_rate=10.0,
 		cool_rate=1.0,
-		dmg=5,
+		dmg=6,
 		rate=3,
 		shots=1,
 		shoot=shoot_chain,
@@ -310,7 +310,7 @@ function init_guns()
 		charge=0,
 		heat_rate=40.0,
 		cool_rate=1.0,
-		dmg=4,
+		dmg=5,
 		rate=15,
 		shots=6,
 		shoot=shoot_shotgun,
@@ -348,7 +348,7 @@ function init_guns()
 	stype=item_type.z_gun,
 		pickup=nop,
 		drop=nop,
-		base_cost=20,
+		base_cost=40,
 		rarity=2,
 		cooldown=20,
 		--how long the laser is active
@@ -375,7 +375,7 @@ function init_guns()
 	stype=item_type.z_gun,
 		pickup=nop,
 		drop=nop,
-		base_cost=20,
+		base_cost=100,
 		rarity=2,
 		cooldown=20,
 		splash=2,
@@ -483,16 +483,16 @@ sb_heated=false
 --being heated
 sb_heated_mul=2.0
 --rate at which sb cools
-sb_cool=1.0
+sb_cool=1.1
 --multiplier for gun heat
 sb_gun_heat_mul=1.0
 --speed of movement
-sb_speed=1.0
+sb_speed=1.5
 --how quick of fire rate
 sb_rate_mod=1.0
 --while a gun is overheated add
 --this amount to sb_heat per fire
-sb_gun_overheat=40.0
+sb_gun_overheat=30.0
 --invincibility
 sb_inv_dur=60
 sb_inv_count=0
@@ -558,12 +558,9 @@ function _init()
 	sb_health=sb_max_health
 	reset_sb()
 	equip(simple_chain_gun)
-	--equip(shotty_gun)
 	equip(blink_spec)
 	equip(dev_mode_mod)
-	--equip(beam_laser)
-	equip(sine_gun)
-	equip(missle_laser)
+	equip(beam_laser)
 	fill_vending()
 	--make it so beginning equip
 	--sfx do not play
@@ -903,7 +900,6 @@ function inv_navigate(lines)
 end
 
 function pickup_item(a)
-
 	if (not 
 			contains(sb_pocket,a)) and
 			#sb_pocket<9
@@ -1322,7 +1318,9 @@ function gun_control()
 		end
 		
 	end --end if btn(x)
-	if btn(4) and not btn(5) then
+	if (btn(4) and not btn(5))
+			and z_gun.spec!=nil then
+	
 		z_gun.heat+=
 				(z_gun.spec.heat_rate*
 				z_gun.heat_mul)*
@@ -1648,9 +1646,13 @@ function check_bullet(b)
 			 end
 			 if b.exploding==nil then
 			 	apply_blt_dmg(e,b)
-			 	explode_hit(b.x,b.y)
-			 	del(bullets,b)
-			 	sfx(0,-1,0,12)
+			 	if b.beam then
+			 		explode_hit(e.x+4,e.y+4)
+			 	else
+			 		explode_hit(b.x,b.y)
+			 		del(bullets,b)
+			 		sfx(0,-1,0,12)
+			 	end
 			 end
 			end
 		end
@@ -2317,6 +2319,8 @@ function init_loot_pool()
 			0.1)
 	add_loot(sine_gun,
 			0.1)
+	add_loot(missle_laser,
+		0.1)
 end
 
 --bias = vending rarity
@@ -2368,14 +2372,15 @@ function init_lab()
 end
 
 function lab_gen1()
+	
 	pool={
 		4,4, --spitters
 		10, --fliers
 		7,7,7, --walls
-		14,14,14
+		14
 	}
 	o={
-		rate=0.05,
+		rate=0.02*lab_depth,
 		min=20,
 		max=50
 	}
