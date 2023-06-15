@@ -13,9 +13,9 @@ __lua__
 acnt=1
 
 scroll_speed=10
-map_height=128*4
+map_height=128*2
 
-map_y=(map_height/8)+64
+map_y=nil
 
 function contains(t,v)
 	for i in all(t) do
@@ -604,6 +604,10 @@ function stage_mode()
 			" complete!\n"..
 "❎ to check loot and continue\n"..
 "🅾️ to return to map")
+			palt(0,false)
+			spr(192,96,32,2,2)
+			spr(224,96,32+16,2,2)
+			palt(0,true)
 			end
 		goto_prompt(next_stage,
 			stage_exit)
@@ -656,6 +660,10 @@ function game_over_mode()
 			extcmd("reset")
 			stop()
 		end
+		palt(0,false)
+		spr(192,96,32,2,2)
+		spr(224,32,32+16,2,2)
+		palt(0,true)
 	else
 		print("it seems as though you")
 		print("have another chance")
@@ -1788,7 +1796,7 @@ function clean_enemies()
 				e.spec.anim[1],
 				e.x-4,e.y-4)
 		end
-		if (e.x>124 or e.x<0) or
+		if (e.x>125 or e.x<0) or
 			(e.y>132 or e.y<0) then
 			printh("deleted out of bounds enemy")
 			del(enemies, e)
@@ -1923,14 +1931,35 @@ function flier_update(e)
 end
 
 function scroll_enemies()
+	map_y-=1
 	for e in all(enemies) do
 		e.y+=1
 	end
-	for e in all(stage_enemies) do
-		if e.y-map_y==8 then
-			e.spawn(e.x*8,e.y-map_y)
+	for x=1,14 do
+		if map_y%8==0 then
+			c=sget(x,96+(map_y/8))
+		else
+			c=0
+		end
+		printh("c: "..c)
+		spawn=e_map[c]
+		if spawn!=nil then
+			printh("spawn enemy")
+			spawn(x*8,8)
 		end
 	end
+end
+--populates initial enemies
+--before scrolling
+function spawn_stage()
+	map_y=map_height
+	for i=0,80 do
+		scroll_enemies()
+	end
+	--for x=1,14 do
+	--	for y=1,map_height/8-1 do
+	--	end
+	--end
 end
 -->8
 --stages and maps
@@ -2017,7 +2046,7 @@ function init_lab()
 			lab_gen_x)
 end
 
-function lab_gen1(d)
+function lab_gen1()
 	pool={
 		4,4, --spitters
 		10, --fliers
@@ -2075,11 +2104,8 @@ function enter_lab()
 		gen=lab_stage_gens[lab_depth]
 	end
 	reset_sb()
-	gen(lab_depth)
-	palt(0,false)
-	spr(192,32,32,2,2)
-	spr(224,32,32+16,2,2)
-	stop()
+	lab_gen1()
+	spawn_stage()
 end
 
 
@@ -2097,8 +2123,8 @@ function gen_stage(opt,
 		enemies={}
 		stage_enemies={}
 		for x=1,14 do
-			for y=1,map_height/8-1 do
-				sset(x,y,0)
+			for y=1,(256/8)-2 do
+				sset(x,y+96,0)
 				if opt.rate>rnd() then
 					printh("make enemy")
 					--spawn enemy
@@ -2110,7 +2136,7 @@ function gen_stage(opt,
 			end
 		end
 		--check min and max
-	 c=e_count_no_walls()
+	 --c=e_count_no_walls()
 	 --printh(c)
 	 --todo: until get a gauge of
 	 --enemy counts is fun..
