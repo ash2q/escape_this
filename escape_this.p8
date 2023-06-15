@@ -379,7 +379,7 @@ function init_guns()
 		rarity=2,
 		cooldown=20,
 		splash=2,
-		splash_dmg=60
+		splash_dmg=40
 	}
 
 	
@@ -573,7 +573,6 @@ function _init()
 		--load_pockets()
 		current_mode=inv_mode
 		--current_mode=stage_mode
-		--reactor()
 	else
 		current_mode=map_mode
 		build_map()
@@ -2293,8 +2292,7 @@ end
 
 --the lab contains random stages
 
---the reactor contains fixed
---stages
+
 in_stage=false
 loot_pool={}
 
@@ -2366,15 +2364,7 @@ end
 
 
 stage_name=nil
-
-lab_stage_gens={}
 function init_lab()
-	add(lab_stage_gens,
-			lab_gen1)
-	add(lab_stage_gens,
-			lab_gen2)
-	add(lab_stage_gens,
-			lab_gen_x)
 end
 
 function lab_gen1()
@@ -2391,34 +2381,6 @@ function lab_gen1()
 	}
 	gen_stage(o,pool)
 end
-function lab_gen2(d)
-	pool={}
-	add(pool,spawn_spitter)
-	add(pool,spawn_spitter)
-	add(pool,spawn_wall)
-	add(pool,spawn_wall)
-	add(pool,spawn_flier)
-	o={
-		rate=0.1,
-		min=5,
-		max=10
-	}
-	gen_stage(o,pool)
-end
-
-function lab_gen_x(d)
-	pool={}
-	add(pool,spawn_spitter)
-	add(pool,spawn_wall)
-	add(pool,spawn_wall)
-	add(pool,spawn_flier)
-	o={
-		rate=0.3,
-		min=15,
-		max=30
-	}
-	gen_stage(o,pool)
-end
 
 lab_depth=1
 in_lab=false
@@ -2428,13 +2390,6 @@ function enter_lab()
 	in_stage=true
 	reset_sb()
 	current_mode=stage_mode
-	gen=nil
-	if lab_depth>#lab_stage_gens
-		then
-		gen=lab_stage_gens[#lab_stage_gens]
-	else
-		gen=lab_stage_gens[lab_depth]
-	end
 	reset_sb()
 	lab_gen1()
 	spawn_stage()
@@ -2493,61 +2448,13 @@ function gen_rnd_walls()
 	
 end
 
-
-function stage_1()
-	spawn_spitter(10,30)
-	spawn_spitter(80,40)
-	spawn_wall(30,15)
-	spawn_flier(5,15)
-end
-function stage_2()
-	spawn_spitter(10,30).reward+=1
-	spawn_spitter(80,30).reward+=1
-	spawn_spitter(40,30).reward+=1
-end
-
-in_reactor=false
-reactor_depth=1
-
-reactor_stages={
-	stage_1,stage_2
-}
-
-function enter_reactor()
-	in_reactor=true
-	in_stage=true
-	stage_name="r-"..reactor_depth
-	reset_sb()
-	current_mode=stage_mode
-	if 
-		reactor_depth>#reactor_stages
-		then
-		current_stage=reactor_stages
-			[#reactor_stages]
-	else
-		current_stage=reactor_stages
-			[reactor_depth]
-	end
-	current_stage()
-end
-
 locations={}
-reactor_loc=nil
 home_loc=nil
 mechanic_loc=nil
 lab_loc=nil
 vending_loc=nil
 
 function init_locations()
-	reactor_loc={
-		launches=enter_reactor,
-		cancel=stage_cancel,
-		msg_fn=function()
-		print("enter reactor at depth "..
-			reactor_depth.."?\n"..
-			"(❎ for yes)")
-		end
-	}
 	home_loc={
 		launches=enter_home,
 		cancel=back_to_map,
@@ -2592,9 +2499,7 @@ end
 
 function enter_help()
 	prompt_msg=
-"the lab is randomly generated\n"..
-"the reactor is fixed and hard\n"..
-"the lab may be too hard at first.\n"..
+"the lab is randomly generated.\n"..
 "every new level defeated fills\n"..
 "the vending machine with new\n"..
 "loot. make sure to check it.\n"..
@@ -2632,8 +2537,6 @@ function add_map_loc(x,y,loc)
 end
 
 function build_map()
-	add_map_loc(1*8,1*8,
-		reactor_loc)
 	add_map_loc(4*8,7*8,
 		home_loc)
 	add_map_loc(7*8,1*8,
@@ -2711,29 +2614,17 @@ end
 
 function next_stage()
 	in_prompt=false
-	if in_reactor then
-	--later add fixed loot system
-		reactor_depth+=1
-		reset_stage()
-		enter_reactor()
-	else
-		lab_depth+=1
-		human_reset=false
-		in_stage=true
-		enter_vending()
-	end
+	lab_depth+=1
+	human_reset=false
+	in_stage=true
+	enter_vending()
 end
 function stage_exit()
 	in_stage=false
-	if in_reactor then
-		in_reactor=false
-		reactor_depth+=1
-		back_to_map()
-	else
-		in_lab=false
-		lab_depth+=1
-		back_to_map()
-	end
+	in_lab=false
+	lab_depth+=1
+	back_to_map()
+	
 end
 function stage_cancel()
 	back_to_map()
@@ -2915,11 +2806,7 @@ function shop_navigate(lines)
 		sfx(8)
 		shop_pressed=true
 		if in_stage then
-			if in_reactor then
-				enter_reactor()
-			else
-				enter_lab()
-			end
+			enter_lab()
 		else
 			current_mode=map_mode
 		end
@@ -3202,8 +3089,8 @@ __label__
 
 __map__
 4a4b4a4b4a4b4a4b4a4b4a4a4a4b4a4b00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-4b40414a4b4a4b46474b5a5b4a4b4a4b00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-5b50515a5b5a5b56575b5a5b5a5b5a5b00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+4b4a4b4a4b4a4b46474b5a5b4a4b4a4b00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+5b5a5b5a5b5a5b56575b5a5b5a5b5a5b00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 4a4b4a4b4a4a4b4a4b4a4a4b4a44454b00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 5a5b5a5b5a5a5b5a5b5a5a5b5a54555b00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 4a4b4a4b4a4b4a4b4a4b4a4b4a4b5a5b00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
