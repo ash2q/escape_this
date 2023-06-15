@@ -13,6 +13,7 @@ __lua__
 acnt=1
 
 scroll_speed=20
+scroll_length=512
 
 function contains(t,v)
 	for i in all(t) do
@@ -251,7 +252,7 @@ function init_guns()
 	shotty_gun={
 		lbl=61,
 		charge=0,
-		heat_rate=20.0,
+		heat_rate=40.0,
 		cool_rate=1.0,
 		dmg=4,
 		rate=15,
@@ -364,7 +365,9 @@ sb_y=70
 sb_moved=false
 
 sb_heat=0.0
-sb_max_heat=400
+--note for some reason this must
+--be a multiple of sb_gun_overheat
+sb_max_heat=200
 sb_health=100
 --maximum health
 sb_max_health=100
@@ -374,7 +377,7 @@ sb_heated=false
 --being heated
 sb_heated_mul=2.0
 --rate at which sb cools
-sb_cool=1.5
+sb_cool=1.0
 --multiplier for gun heat
 sb_gun_heat_mul=1.0
 --speed of movement
@@ -382,10 +385,10 @@ sb_speed=1.0
 --how quick of fire rate
 sb_rate_mod=1.0
 --while a gun is overheated add
---this amount to sb_heat
+--this amount to sb_heat per fire
 sb_gun_overheat=40.0
 --invincibility
-sb_inv_dur=100
+sb_inv_dur=60
 sb_inv_count=0
 --how many frames must wait to
 --get another charge
@@ -484,7 +487,6 @@ function prompt_mode()
 	if not human_reset then
 	 return
 	end
-	bx=5 --❎
 	if btn(5) then
 		prompt_confirm()
 	elseif btn(4) then
@@ -577,7 +579,7 @@ function stage_mode()
 			z_gun.heat=0
 		end
 	end
-	if sb_heat > sb_max_heat then
+	if sb_heat >= sb_max_heat then
 		sb_heated=true
 		sb_heat=sb_max_heat
 	end
@@ -779,8 +781,10 @@ function inv_navigate(lines)
 end
 
 function pickup_item(a)
-	if not 
-			contains(sb_pocket,a)
+
+	if (not 
+			contains(sb_pocket,a)) and
+			#sb_pocket<9
 		then
 		add(sb_pocket, a)
 		a.pickup()
@@ -1026,8 +1030,8 @@ function heat_meter(x,y,heat,
 				y+5,
 				heat_col[i]
 				)
-				if (acnt%4==0 or acnt%2==0) and
-							heat >= 100 then
+				if (acnt%4==0 or acnt%2==0)
+					 and heat >= 100 then
 					rectfill(
 						x+gi,y,x+1+gi,
 						y+5,8
@@ -1077,24 +1081,18 @@ frames_in_col=0
 prev_col_enemies={}
 
 function player_control()
-	l=0
-	r=1
-	u=2
-	d=3
-	bx=5
-	bz=4
 	x=sb_x
 	y=sb_y
-	if btn(l) then
+	if btn(0) then
 		sb_x-=sb_speed
 	end
-	if btn(r) then
+	if btn(1) then
 		sb_x+=sb_speed
 	end
-	if btn(u) then
+	if btn(2) then
 		sb_y-=sb_speed
 	end
-	if btn(d) then
+	if btn(3) then
 		sb_y+=sb_speed
 	end
 	if sb_y != y or 
@@ -1124,27 +1122,26 @@ function player_control()
 				sb_x=x
 				sb_y=y
 				if frames_in_col>1 then
-					printh("in col")
 					if last_edge_right then
-						sb_x-=1
+						sb_x-=2
 					end
 					if last_edge_left then
-						sb_x+=1
+						sb_x+=2
 					end
 					if last_edge_top then
-						sb_y-=1
+						sb_y+=2
 					end
 					if last_edge_bottom then
-						sb_y+=1
+						sb_y-=2
 					end
 				end
 			else
 			end
 		end
-		if clear_col then
-			prev_col_enemies={}
-			frames_in_col=0
-		end
+	end
+	if clear_col then
+		prev_col_enemies={}
+		frames_in_col=0
 	end
 		--keep from going out of bound
 	if sb_y<4 or
@@ -1160,13 +1157,18 @@ end
 
 
 function gun_control()
-	bx=5
-	bz=4
 	x=sb_x
 	y=sb_y
 	sb_charging=false
-	local spec=x_gun.spec
-	if btn(bx) and not btn(bz) then
+	spec=x_gun.spec
+	--do heat
+	printh("sb_heat: "..sb_heat)
+	if sb_heated then
+		sb_charging=false
+		return
+	end
+
+	if btn(5) and not btn(4) then
 		--do rate of fire
 		if x_fire_rate() then
 			--shoot bullet now
@@ -1183,13 +1185,12 @@ function gun_control()
 	 	then
 				sb_heat+=sb_gun_overheat
 				sb_heat=min(sb_heat,sb_max_heat)
-			
 			end
 		else
 			--in between bullets
 		end
 	end --end if btn(x)
-	if btn(bz) and not btn(bx) then
+	if btn(4) and not btn(5) then
 		z_gun.heat+=
 				(z_gun.spec.heat_rate*
 				z_gun.heat_mul)*
@@ -1224,11 +1225,8 @@ function gun_control()
 		sb_charging=false
 		
 	end
-	
-	if x_gun.heat>x_gun.max_heat
-		then
-  x_gun.heat=x_gun.max_heat
- end
+	x_gun.heat=min(x_gun.max_heat,
+			x_gun.heat)
 	x_gun.r=max(x_gun.r,0)
 	--z_gun.r=max(z_gun.r,0)
 	if sb_inv_count>0 then
@@ -1239,6 +1237,10 @@ end
 function boost_control()
 --🅾️ is 4
 --❎ is 5
+	if sb_heated then
+		sb_charging=false
+		return
+	end
 	if sb_boost.cooldown>0 then
 		sb_boost.cooldown-=1
 		return
@@ -1275,11 +1277,6 @@ function x_fire_rate()
 		x_gun.r=0
 	else
 		x_gun.r+=sb_rate_mod
-	end
-	if not sb_expert_mod then
-		if sb_heated then
-			return false
-		end
 	end
 	return x_gun.r==0
 end
@@ -1521,7 +1518,7 @@ function shoot_chain()
 	end
 	add(bullets,blt)
 	sfx(1,0,0,6)
-	return b
+	return blt
 end
 
 function shoot_big_chain()
@@ -1535,7 +1532,7 @@ end
 function get_shot_dmg(x)
 	dmg=x.spec.dmg
 	if x.heat>=100 then
-		dmg*=heated_dmg_mul
+		dmg*=x.heated_dmg_mul
 	end
 	dmg*=sb_dmg_mul
 	dmg=flr(dmg)
@@ -1575,7 +1572,6 @@ function blt_straight(x,y,dmg)
 		size=1,
 		xend=x,
 		yend=0,
-		size=1,
 		dmg=dmg,
 		steps=1,
 		--note be careful, speed
@@ -1594,7 +1590,6 @@ function blt_beam(x,y,dmg)
 	blt={
 		x=x,
 		y=y,
-		size=1,
 		xend=x,
 		yend=0,
 		size=2, --is width
@@ -1630,10 +1625,6 @@ function col_beam(b,x2,y2,
 		return false
 	end
 	return true
-	--do pixel perfect check
-	--assumes black background
-	--col=pget(b.x,b.y)
-	--return col!=0
 end
 
 
@@ -1671,10 +1662,6 @@ function col_pixel(b,x2,y2,
 		return false
 	end
 	return true
-	--do pixel perfect check
-	--assumes black background
-	--col=pget(b.x,b.y)
-	--return col!=0
 end
 
 
@@ -1750,9 +1737,7 @@ function init_enemies()
 		health=50,
 		rate=40,
 		dmg=30,
-		reward=2,
-		flip_dir_h=false,
-		flip_dir_v=false
+		reward=2
 	}
 	e_spec_wall={
 		anim={59},
@@ -1764,9 +1749,7 @@ function init_enemies()
 		health=50,
 		rate=40,
 		dmg=30,
-		reward=1,
-		flip_dir_h=false,
-		flip_dir_v=false
+		reward=1
 	}
 	e_spec_flier={
 		anim={55,56,57,58},
@@ -1778,11 +1761,7 @@ function init_enemies()
 		health=50,
 		rate=40,
 		dmg=30,
-		reward=2,
-		--flip sprite when moving 
-		--opposite direction
-		flip_dir_h=true,
-		flip_dir_v=false
+		reward=2
 	}
 end
 
@@ -2239,7 +2218,7 @@ function enter_help()
 "visit the mechanic for expensive\n"..
 "yet always useful upgrades.\n"..
 "keep in mind spiderbot is only\n"..
-"capable of holding 8 items.\n"..
+"capable of holding 9 items.\n"..
 "dismantle the useless ones.\n"..
 "the prefix (in parens) indicates\n"..
 "what it is activated by.\n"..
@@ -2305,7 +2284,7 @@ function check_col(x1,y1,w1,h1,
 	end
 	y_col=false
 	last_edge_top=
-		y1<y2+h2 and y1>y2
+		y1<=y2+h2 and y1>y2
 	if last_edge_top then
 		y_col=true
 	end
@@ -2603,14 +2582,14 @@ __gfx__
 0ffffff00ffffffffffffffffffffff0000000000058850005899850089aa98000588500000550000005500000099000008998000055550050c11c0550800805
 ff0000ffff00000ff000000ff00000ff00000000000550000058850000899800000550000000000000000000000000000008800000055000500cc00550888805
 f000000ff0000000000000000000000f000000000000000000055000000880000000000000000000000000000000000000000000000000005555555555555555
-55555555000000005555555555555555555555555555555500000000000066600000666000006660000066606666666655555555555555550000000000000000
-5006600500000000500bb00550099005500220055000500505555500000655600006556900065568000655606555555650000505500000050000000000000000
-5667766570000000500bb00550099005500220055066600505555500006555600065556900655568006555686500005656666605500000550000000000000000
-56788765770000005bbbbbb559999995522222255065000505555500065599600655996006559960065599606500005656666605566666650000000000000000
-56708765777000005bbbbbb55999999552222225500050050a0a0a00065599600655996006559960065599606500005654450005544504450000000000000000
-5667766577000000500bb0055009900550022005506660050a0a0a00006555600065556900655568006555686500005654450005540000050000000000000000
-5006600570000000500bb00550099005500220055065000500000000000655600006556900065568000655606555555654400005540000050000000000000000
-55555555000000005555555555555555555555555555555500000000000066600000666000006660000066606666666655555555555555550000000000000000
+5555555500000000555555555555555555555555555555550000000000006660000066600000666000006660666666665555555555555555001cc10000000000
+5006600500000000500bb0055009900550022005500050050555550000065560000655690006556800065560655555565000050550000005001cc10000000000
+5667766570000000500bb0055009900550022005506660050555550000655560006555690065556800655568650000565666660550000055001cc10000000000
+56788765770000005bbbbbb55999999552222225506500050555550006559960065599600655996006559960650000565666660556666665001cc10000000000
+56708765777000005bbbbbb55999999552222225500050050a0a0a0006559960065599600655996006559960650000565445000554450445001cc10000000000
+5667766577000000500bb0055009900550022005506660050a0a0a0000655560006555690065556800655568650000565445000554000005001cc10000000000
+5006600570000000500bb005500990055002200550650005000000000006556000065569000655680006556065555556544000055400000511cccc1100000000
+55555555000000005555555555555555555555555555555500000000000066600000666000006660000066606666666655555555555555551cccccc100000000
 55585055050505555777777777777775033333333333333055555555555555555555555555555555555555555555550555555555555555550000000000000000
 5650a55898955565577cccccc666666503ccccccccc3333077777777777777775555556555555555556555555555555555555500005555550000000000000000
 5659500550a58065577cccccc6555555039cc8ccaac3333077777777777777775555666655555555555545554555605555555006660555550000000000000000
