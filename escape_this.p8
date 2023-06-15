@@ -186,10 +186,12 @@ end
 function do_dev_mode()
 	printh("equipped dev mode")
 	sb_currency+=50
+	sb_max_health+=100
 end
 function undo_dev_mode()
 	printh("unequipped dev mode")
 	sb_currency-=50
+	sb_max_health+=100
 end
 
 function do_radiator()
@@ -376,8 +378,8 @@ function init_guns()
 		base_cost=20,
 		rarity=2,
 		cooldown=20,
-		splash=4,
-		splash_dmg=10
+		splash=2,
+		splash_dmg=60
 	}
 
 	
@@ -1618,20 +1620,38 @@ function check_bullet(b)
 			if b.collision_fn(b,
 					e.x-4,e.y-4)
 			 then
-			 e.health-=b.dmg
-			 total_damage+=b.dmg
-			 sfx(0,-1,0,12)
-			 explode_hit(b.x,b.y)
-			 if not b.beam then
-			 	if b.exploding!=nil
-			 		and b.exploding then
-			 		b.exploding=nil
-			 	end
-			 	if b.exploding==nil then
-			 		del(bullets,b)
-			 	else
-			 		b.exploding=true
-			 	end
+			 if b.exploding!=nil and
+			 	not b.exploding 
+			  then
+			  b.exploding=true
+			  --recursive call for splash
+			  --damage
+			  printh("recursive")
+			  check_bullet(b)
+			  --draw splash explosions
+			 	for x=0-b.splash,b.splash do
+			 		for y=-1-b.splash,b.splash do
+			 			explode_hit(
+								b.x+(x*8),
+		 					b.y+(y*8))
+		 			end
+		 		end
+			 	--exit, the missle exploded
+			  return
+			 end
+			 if b.exploding!=nil and
+			 		b.exploding 
+			 	then
+			 	printh("splashing")
+			 	apply_splash_dmg(e,b)
+			 	del(bullets,b)
+			 	sfx(0,-1,0,12)
+			 end
+			 if b.exploding==nil then
+			 	apply_blt_dmg(e,b)
+			 	explode_hit(b.x,b.y)
+			 	del(bullets,b)
+			 	sfx(0,-1,0,12)
 			 end
 			end
 		end
@@ -1655,22 +1675,34 @@ function check_bullet(b)
 		end
 	end
 end
+function apply_blt_dmg(e,b)
+	e.health-=b.dmg
+	total_damage+=b.dmg
+end
+function apply_splash_dmg(e,b)
+	e.health-=b.splash_dmg
+	total_damage+=b.splash_dmg
+end
 
 function clean_bullets()
 	for b in all(bullets) do
 		if b.x<0 or b.y<0 or
 					b.x>128 or b.y>128 then
 			del(bullets,b)
-		end
-		if b.beam then
+		elseif b.beam then
 			if b.frames<=0 then
 				del(bullets,b)
 			end
-		end
+		elseif b.exploded!=nil and
+		 	b.exploded
+		 then
+		 del(bullets,b)
+			end
 	end
 end
 
 function shoot_missle()
+	printh("shoot_missle")
 	x1=sb_x
 	--undo draw centering
 	y=sb_y-4
@@ -1678,6 +1710,8 @@ function shoot_missle()
 	blt=blt_straight(x1,y,dmg)
 	blt.size=3
 	blt.splash=z_gun.spec.splash
+	blt.splash_dmg=
+			z_gun.spec.splash_dmg
 	blt.speed=2.0
 	blt.collision_fn=col_explode
 	blt.exploding=false
@@ -1791,8 +1825,6 @@ function blt_straight(x,y,dmg)
 		friendly=true,
 		sprite=-7,
 		splash=0,
-		exploding=false,
-		hit_fn=hit_blt,
 		step_fn=step_straight,
 		collision_fn=col_pixel
 	}
@@ -1819,7 +1851,6 @@ function blt_beam(x,y,dmg)
 		speed=1.0,
 		friendly=true,
 		sprites={5,5,6,6},
-		hit_fn=hit_blt,
 		step_fn=step_beam,
 		collision_fn=col_beam,
 		frames=10
@@ -1863,16 +1894,13 @@ function blt_line(x,y,dmg)
 	return blt
 end
 
-function hit_blt(blt, e)
-	e.health-=blt.damage
-end
-
 function col_pixel(b,x2,y2,
 			w,h)
 --x1,y1 = pixel bullet
 --x2,y2 = target sprite to check
 --w,h = size of target sprite
 	--defaults to 8x8
+	last_col_splash=false
 	w=w or 8
 	h=h or 8
 	if not check_col(b.x,b.y,
@@ -1882,6 +1910,8 @@ function col_pixel(b,x2,y2,
 	end
 	return true
 end
+
+last_col_splash=false
 function col_explode(b,x2,y2,
 			w,h)
 --x1,y1 = pixel bullet
@@ -1890,12 +1920,15 @@ function col_explode(b,x2,y2,
 	--defaults to 8x8
 	w=w or 8
 	h=h or 8
+	last_col_splash=false
 	if b.exploding then
-		return check_col(
+		c=check_col(
 			b.x-(b.splash*8/2),
 			b.y-(b.splash*8/2),
 			b.splash*8,b.splash*8,
 			x2,y2,w,h)
+			last_col_splash=c
+		return c
 	end
 	return check_col(b.x,b.y,
 			b.size,b.size,
