@@ -116,6 +116,7 @@ modules={}
 
 
 dev_mode_mod={}
+harness_mod={}
 radiator_mod={}
 
 function init_modules()
@@ -150,6 +151,27 @@ function init_modules()
 		base_cost=60,
 		rarity=2
 	}
+	harness_mod={
+		name="(m) harness",
+		desc=
+"a set of metal brackets and\n"..
+"bolts. used to attach a simple\n"..
+"gun for shooting backwards",
+		lbl=2,
+		do_effect=function()
+			y_gun.spec=simple_chain_gun
+			sb_enable_y_gun=true
+		end,
+		undo_effect=function()
+			sb_enable_y_gun=false
+			y_gun.spec=nil
+		end,
+		pickup=pickup_module,
+		drop=drop_module,
+		stype=item_type.module,
+		base_cost=40,
+		rarity=1
+	}
 end
 
 function pickup_module(m)
@@ -159,6 +181,7 @@ end
 function drop_module(m)
 	del(equipped_mods,m)
 end
+
 
 function do_dev_mode()
 	printh("equipped dev mode")
@@ -347,6 +370,28 @@ function init_guns()
 		c=0, --charge counter
 		r=0 --rate counter
 	}
+		--y is used for shooting
+		--backwards
+	y_gun={
+	 --spec should be const
+		spec=nil,
+		heat=0.0,
+		--multiplier for heat rate
+		heat_mul=0,
+		--bonus damage for heated gun
+		heated_dmg_mul=1.0,
+		--damage multiplier
+		dmg_mul=0.8,
+		heated=false,
+		--max heat
+		--note: heat over 100 is
+		--considered overheated
+		max_heat=1000,
+		--multipler for cool rate
+		cool_mod=1.0,
+		c=0, --charge counter
+		r=0 --rate counter
+	}
 	--z is secondary/slow
 	z_gun={
 		--spec should be const
@@ -430,7 +475,7 @@ sb_dmg_mul=1.0
 sb_max_charge=100
 --mod globals
 sb_expert_mod=false
-sb_shoot_backwards=false
+sb_enable_y_gun=false
 
 extra_lives=0
 
@@ -1214,7 +1259,7 @@ function gun_control()
 
 	if btn(5) and not btn(4) then
 		--do rate of fire
-		if x_fire_rate() then
+		if fire_rate(x_gun) then
 			--shoot bullet now
 			for i=1,x_gun.spec.shots do
 				spec.shoot()
@@ -1233,6 +1278,15 @@ function gun_control()
 		else
 			--in between bullets
 		end
+		if fire_rate(y_gun) then
+			--shoot bullet now
+			shoot_y_gun=true
+			for i=1,y_gun.spec.shots do
+				y_gun.spec.shoot()
+			end
+			shoot_y_gun=false
+		end
+		
 	end --end if btn(x)
 	if btn(4) and not btn(5) then
 		z_gun.heat+=
@@ -1316,15 +1370,14 @@ end
 
 
 --this implements rate of fire
-function x_fire_rate()
-	if x_gun.r>=x_gun.spec.rate then
-		x_gun.r=0
+function fire_rate(g)
+	if g.r>=g.spec.rate then
+		g.r=0
 	else
-		x_gun.r+=sb_rate_mod
+		g.r+=sb_rate_mod
 	end
-	return x_gun.r==0
+	return g.r==0
 end
-
 		
 --deletes all enemy bullets
 function blink_boost(b)
@@ -1553,15 +1606,23 @@ function shoot_chain()
 	x1=sb_x
 	--undo draw centering
 	y=sb_y-4
-	dmg=get_shot_dmg(x_gun)
-	blt=blt_straight(x1,y,dmg)
-	blt.speed=2.0
-	if x_is_heated() then
-		--make red
-		blt.sprite=-8
+	if shoot_y_gun then
+		--shoot backwards gun
+		y=sb_y+4
+		dmg=get_shot_dmg(y_gun)
+		blt=blt_straight(x1,y,dmg)
+		blt.yend=130
+		blt.speed=1.5
+	else
+		dmg=get_shot_dmg(x_gun)
+		blt=blt_straight(x1,y,dmg)
+		blt.speed=2.0
+		if x_is_heated() then
+			--make red
+			blt.sprite=-8
+		end
 	end
 	add(bullets,blt)
-	sfx(1,0,0,6)
 	return blt
 end
 
@@ -2098,6 +2159,8 @@ function init_loot_pool()
 			0.1)
 	add_loot(radiator_mod,
 			0.2)
+	add_loot(harness_mod,
+			0.2)
 	add_loot(texas_chain_gun,
 			0.1)
 	add_loot(beam_laser,
@@ -2168,7 +2231,8 @@ function lab_gen1()
 	pool={
 		4,4, --spitters
 		10, --fliers
-		7,7,7 --walls
+		7,7,7, --walls
+		14,14,14
 	}
 	o={
 		rate=0.05,
@@ -2529,7 +2593,8 @@ function init_shops()
 	mechanic_pocket={
 		radiator_mod,
 		simple_chain_gun,
-		texas_chain_gun
+		texas_chain_gun,
+		harness_mod
 	}
 	
 end
@@ -2727,14 +2792,14 @@ end
 
 
 __gfx__
-0007700055555555000000000000000000000000000000000cccccc0000009000090000090077009555555555555555555555555006666000066660000555500
-000770005000000500000500005000000060c600006006000a6cc6a0000005000050000080077008500000055606606550000005006006000696696005755750
-050660505060c6050000666006660000006c0600006006000a6cc6a0000066600666000050066005500005055067760550666605666006666511115657a66a75
-576d1675506c060500006167761600000060c600006006000a6cc6a00000616776160000576d1675506666055670076550688605600000066518815655690655
-5761d6755060c6050000616776160000006c0600006006000a6cc6a000006167761600005761d675506500055670076550f33f05600000066518815655609655
-050660505066660500006660066600000060c600006006000a6cc6a000006660066600005006600550600005506776055ffffff5666006666511115657a66a75
-0007700050066005000000000000000000666600006666000aa66aa000000000000000008007700850000005560660655f0000f5006006000696696005766750
-00077000555555550000000000000000000770000007700000a77a00000000000000000090077009555555555555555555555555006666000066660000566500
+0000000055555555555555550000000000000000000000000cccccc0000009000090000090077009555555555555555555555555006666000066660000555500
+000000005000000556600005000000000060c600006006000a6cc6a0000005000050000080077008500000055606606550000005006006000696696005755750
+000000005060c6055666660500000000006c0600006006000a6cc6a0000066600666000050066005500005055067760550666605666006666511115657a66a75
+00000000506c060556566605000000000060c600006006000a6cc6a00000616776160000576d1675506666055670076550688605600000066518815655690655
+000000005060c6055000560500000000006c0600006006000a6cc6a000006167761600005761d675506500055670076550f33f05600000066518815655609655
+000000005066660550606605000000000060c600006006000a6cc6a000006660066600005006600550600005506776055ffffff5666006666511115657a66a75
+0000000050066005506066050000000000666600006666000aa66aa000000000000000008007700850000005560660655f0000f5006006000696696005766750
+00000000555555555555555500000000000770000007700000a77a00000000000000000090077009555555555555555555555555006666000066660000566500
 00555500005555000000000000000000000660000006600000066000000660000000000000000000000000000000000000000000000000000000000055555555
 05655650055555500000000000000000006666000066660000666600006666000000000000000000000900000000000000000000000000000000000050000005
 56666665556666550006660000f666f006c88c6006c88c6006c88c6006c88c600000000000900000009000000000000000000000000000000000000050000005
