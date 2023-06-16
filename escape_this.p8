@@ -1201,18 +1201,26 @@ prev_col_enemies={}
 function player_control()
 	x=sb_x
 	y=sb_y
+	xv=0
+	yv=0
 	if btn(0) then
-		sb_x-=sb_speed
+		xv-=sb_speed
 	end
 	if btn(1) then
-		sb_x+=sb_speed
+		xv+=sb_speed
 	end
 	if btn(2) then
-		sb_y-=sb_speed
+		yv-=sb_speed
 	end
 	if btn(3) then
-		sb_y+=sb_speed
+		yv+=sb_speed
 	end
+	if abs(xv)>0 and abs(yv)>0 then
+		xv*=0.707
+		yv*=0.707
+	end
+	sb_x+=xv
+	sb_y+=yv
 	if sb_y != y or 
 			 sb_x != x then
 			 sb_moved=true
@@ -2058,12 +2066,12 @@ function init_enemies()
 	e_spec_spitter={
 		anim={16,16,17,17},
 		speed=0,
-		blt_speed=0.8,
+		blt_speed=1.5,
 		gun=chain_gun,
 		trace=trace_still,
 		update=enemy_update,
 		health=20,
-		rate=40,
+		rate=60,
 		dmg=30,
 		reward=2
 	}
@@ -2072,7 +2080,7 @@ function init_enemies()
 	e_spec_curver={
 		anim={18,18,19,19},
 		speed=0,
-		blt_speed=0.7,
+		blt_speed=1.2,
 		gun=sine_gun,
 		trace=trace_still,
 		update=enemy_update,
@@ -2086,7 +2094,7 @@ function init_enemies()
 	e_spec_flier={
 		anim={55,56,57,58},
 		speed=0.5,
-		blt_speed=0.6,
+		blt_speed=1.5,
 		gun=chain_gun,
 		trace=trace_slide,
 		update=enemy_update,
