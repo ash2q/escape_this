@@ -12,7 +12,7 @@ __lua__
 --of still entities
 acnt=1
 
-scroll_speed=4
+scroll_speed=3
 map_height=128*2
 
 map_window_y=nil
@@ -494,7 +494,7 @@ sb_rate_mod=1.0
 --this amount to sb_heat per fire
 sb_gun_overheat=30.0
 --invincibility
-sb_inv_dur=60
+sb_inv_dur=45
 sb_inv_count=0
 --how many frames must wait to
 --get another charge
@@ -1292,6 +1292,9 @@ function gun_control()
 	printh("sb_heat: "..sb_heat)
 	if sb_heated then
 		sb_charging=false
+		if sb_inv_count>0 then
+			sb_inv_count-=1
+		end
 		return
 	end
 
@@ -2075,7 +2078,7 @@ function init_enemies()
 		gun=chain_gun,
 		trace=trace_still,
 		update=enemy_update,
-		health=20,
+		health=10,
 		rate=60,
 		dmg=30,
 		reward=2
@@ -2089,7 +2092,7 @@ function init_enemies()
 		gun=sine_gun,
 		trace=trace_still,
 		update=enemy_update,
-		health=20,
+		health=15,
 		rate=40,
 		dmg=30,
 		reward=4
@@ -2103,7 +2106,7 @@ function init_enemies()
 		gun=chain_gun,
 		trace=trace_slide,
 		update=enemy_update,
-		health=30,
+		health=20,
 		rate=40,
 		dmg=30,
 		reward=2
@@ -2116,7 +2119,7 @@ function init_enemies()
 		gun=chain_gun,
 		trace=trace_still,
 		update=trace_still,
-		health=30,
+		health=15,
 		rate=40,
 		dmg=30,
 		reward=1
