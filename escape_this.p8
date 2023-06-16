@@ -1,6 +1,9 @@
 pico-8 cartridge // http://www.pico-8.com
 version 41
 __lua__
+--escape this
+--by ash2q
+
 --main
 
 --x is primary weapon
