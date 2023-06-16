@@ -1743,11 +1743,13 @@ function shoot_chain()
 		dmg=get_shot_dmg(y_gun)
 		blt=blt_straight(x1,y,dmg)
 		blt.yend=130
-		blt.speed=1.5
+		blt.speed=2.0
+		blt.steps=2
 	else
 		dmg=get_shot_dmg(x_gun)
 		blt=blt_straight(x1,y,dmg)
-		blt.speed=2.0
+		blt.speed=3.0
+		blt.steps=2
 		if x_is_heated() then
 			--make red
 			blt.sprite=-8
@@ -1763,7 +1765,8 @@ function shoot_sine()
 	y=sb_y-4
 	dmg=get_shot_dmg(x_gun)
 	blt=blt_curved(x1,y,dmg)
-	blt.speed=2
+	blt.speed=3.0
+	blt.steps=2
 	if x_is_heated() then
 		--make red
 		blt.sprite=-8
@@ -1776,8 +1779,9 @@ end
 
 function shoot_big_chain()
 	b=shoot_chain()
-	b.size=2
+	b.size=3.0
 	b.speed=1.2
+	b.steps=2
 	return b
 end
 
@@ -1800,7 +1804,8 @@ function shoot_shotgun()
 	y=sb_y-4
 	dmg=x_gun.spec.dmg
 	blt=blt_line(x1,y,dmg)
-	blt.speed=2.0
+	blt.speed=3.0
+	blt.steps=2
 	if x_is_heated() then
 		--make red
 		blt.sprite=-8
